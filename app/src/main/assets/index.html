@@ -539,7 +539,9 @@ function matchCard(m){
   const s1 = +m.t1.score, s2 = +m.t2.score;
   const nowT = Date.now();
   const enCours = !m.joue && m.date && !noHour && m.date.getTime() <= nowT && nowT - m.date.getTime() < 2.25*3600e3;
-  const mid = m.joue ? `<div class="sc">${esc(m.t1.score)} - ${esc(m.t2.score)}</div><div class="st">Terminé · ${hr}</div>`
+  const lv = !m.joue ? liveOf(m) : null;
+  const mid = lv ? `<div class="sc" style="color:#FF6B7F">${esc(lv.score_home ?? 0)} - ${esc(lv.score_out ?? 0)}</div><div class="st">● ${esc(liveLabel(lv))}</div>`
+            : m.joue ? `<div class="sc">${esc(m.t1.score)} - ${esc(m.t2.score)}</div><div class="st">Terminé · ${hr}</div>`
                      : enCours ? `<div class="hr" style="color:#FF6B7F">● ${hr}</div><div class="st">En cours</div>`
                      : `<div class="hr">${hr}</div><div class="st">${m.journee ? "J" + esc(m.journee) : ""}</div>`;
   const sexe = m.sexe === "F" ? " F" : m.sexe === "M" ? " M" : "";
@@ -1256,6 +1258,29 @@ function showFavPicker(qs){
   if (!S.results && !S.resLoading) loadResults().then(() => { if ($("favList")) draw(); });
 }
 
+/* ================= Scores en direct (flux FFBB lives.json) ================= */
+S.liveMap = {}; S.liveStatus = "";  // "" inconnu, "ok", "blocked", "err"
+function liveKey(a, b){ return norm(a) + "|" + norm(b); }
+async function refreshLiveMap(){
+  try{
+    const r = await http("GET", API + "json/lives.json", {});
+    if (r.status === 403){ S.liveStatus = "blocked"; return; }
+    if (r.status < 200 || r.status >= 300){ S.liveStatus = "err"; return; }
+    const j = JSON.parse(r.text || "[]"); const arr = Array.isArray(j) ? j : (j.data || []);
+    const map = {};
+    arr.forEach(l => { if (l.matchId != null) map["id:" + l.matchId] = l; map[liveKey(l.teamName_home, l.teamName_out)] = l; });
+    S.liveMap = map; S.liveStatus = "ok";
+  }catch(e){ S.liveStatus = "err"; }
+}
+function liveOf(m){ return S.liveMap["id:" + m.id] || S.liveMap[liveKey(m.t1.nom, m.t2.nom)] || null; }
+function liveLabel(l){
+  const st = String(l.matchStatus || l.currentStatus || "").toLowerCase();
+  if (/fin|final|end|termin/.test(st)) return "Fin du match";
+  if (/half|mi-temps/.test(st)) return "Mi-temps";
+  const per = l.currentPeriod ? String(l.currentPeriod).replace(/^Q/i, "QT") : "";
+  return [per, l.clock].filter(Boolean).join(" · ") || "En direct";
+}
+
 /* ================= Accueil : matchs en cours ================= */
 S.homeAll = false; S.nbaHome = [];
 function isLiveMatch(m, now){
@@ -1281,7 +1306,12 @@ function renderHome(list){
   const live = list.filter(m => isLiveMatch(m, now)).sort((a,b) => a.date - b.date);
   const nbaLive = S.nbaHome.filter(g => g.state === "in");
   let html = homeToggle(list.length);
-  if (live.length) html += `<div class="day">● En cours en Essonne (${live.length})</div>` + live.map(matchCard).join("") + `<div class="stat">Le score s'affiche dès que la FFBB le publie (fin de match).</div>`;
+  if (live.length){
+    const withScore = live.filter(m => liveOf(m)).length;
+    html += `<div class="day">● En cours en Essonne (${live.length})</div>` + live.map(matchCard).join("");
+    html += `<div class="stat">${S.liveStatus === "ok" ? (withScore ? `Score en direct pour ${withScore} match${withScore>1?"s":""} (actualisé toutes les 30 s). ` : "") + (withScore < live.length ? "Les autres matchs n'ont pas de direct FFBB (pas d'e-Marque V2 en live) : score à la fin du match." : "")
+      : S.liveStatus === "blocked" ? "⚠️ Le flux direct FFBB refuse la connexion : score à la fin du match." : "Recherche des scores en direct…"}</div>`;
+  }
   if (nbaLive.length) html += `<div class="day">● En cours en NBA (${nbaLive.length})</div>` + nbaLive.map(nbaCard).join("");
   if (!live.length && !nbaLive.length){
     const next = list.filter(m => m.date && !m.joue && m.date.getTime() > now).sort((a,b) => a.date - b.date);
@@ -1296,6 +1326,12 @@ function renderHome(list){
   html += `<div class="stat">Actualisation automatique chaque minute.</div>`;
   $("main").innerHTML = html;
 }
+setInterval(async () => {
+  // direct FFBB toutes les 30 s quand des matchs sont en cours
+  const now = Date.now();
+  if (S.matches.some(m => isLiveMatch(m, now))){ await refreshLiveMap(); if (S.tab === "matchs" || S.tab === "favs") renderMain(); }
+}, 30000);
+setTimeout(async () => { if (S.matches.some(m => isLiveMatch(m, Date.now()))){ await refreshLiveMap(); if (S.tab === "matchs") renderMain(); } }, 2500);
 setInterval(() => {
   if (S.tab !== "matchs" || S.homeAll) return;
   refreshNbaHome();
