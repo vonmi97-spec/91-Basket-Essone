@@ -90,6 +90,9 @@ table.rk td.tm .logo{width:24px;height:24px;font-size:9px;padding:1px}
 table.rk td.pts{font-weight:900;color:var(--orange2)}
 table.rk tr.me td{background:rgba(242,107,29,.12)}
 .mini{font-size:11px;color:var(--mute);padding:6px 12px 10px}
+.badge2{display:inline-block;border-radius:6px;padding:2px 6px;font-size:10.5px;font-weight:800;margin-left:4px;white-space:nowrap}
+.b-q{background:#1E6B45;color:#BFF5D7}.b-z{background:#7A3E12;color:#FFD9BD}.b-p{background:#2A3F62;color:#C9D6EA}
+.prog{height:4px;background:var(--line);border-radius:4px;margin:0 12px 8px;overflow:hidden}.prog i{display:block;height:100%;background:var(--orange)}
 .settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
 .settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
 </style>
@@ -114,6 +117,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
     <button class="tab on" data-tab="matchs">Matchs</button>
     <button class="tab" data-tab="res">Résultats</button>
     <button class="tab" data-tab="cls">Compétitions</button>
+    <button class="tab" data-tab="up">⬆ Montées</button>
     <button class="tab" data-tab="gyms">Gymnases</button>
     <button class="tab" data-tab="clubs">Clubs</button>
     <button class="tab" data-tab="favs">★ Favoris</button>
@@ -388,7 +392,7 @@ window.logoErr = function(img){
 /* ================= État & rendu ================= */
 const S = { offset: 0, matches: [], cat: "ALL", sexe: "ALL", q: "", tab: "matchs", loading: false, error: null, club: null,
             favs: store.get("favs", []), results: null, resWeeks: 4, resLoading: false, resError: null, open: {}, ranks: {} };
-const src = () => S.tab === "res" ? (S.results || []) : S.tab === "cls" ? allKnown() : S.matches;
+const src = () => S.tab === "res" ? (S.results || []) : (S.tab === "cls" || S.tab === "up") ? allKnown() : S.matches;
 function allKnown(){ const seen = {}, out = []; [S.matches, S.results || []].forEach(l => l.forEach(m => { if (!seen[m.id]){ seen[m.id] = 1; out.push(m); } })); return out; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -423,7 +427,7 @@ function renderWeek(){
   $("wDates").textContent = `ven. ${fmtShort(r.start)} → dim. ${fmtShort(r.end)}`;
 }
 function renderChips(){
-  const cats = {}; const base = S.tab === "res" ? (S.results||[]).filter(m => m.joue) : S.tab === "cls" ? allKnown() : S.matches; base.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
+  const cats = {}; const base = S.tab === "res" ? (S.results||[]).filter(m => m.joue) : (S.tab === "cls" || S.tab === "up") ? allKnown() : S.matches; base.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
   const list = Object.values(cats).sort((a,b) => catSortKey(a.c) - catSortKey(b.c) || a.c.code.localeCompare(b.c.code));
   $("cats").innerHTML = `<button class="chip ${S.cat==="ALL"?"on":""}" data-cat="ALL">Toutes (${base.length})</button>` +
     list.map(x => `<button class="chip ${S.cat===x.c.code?"on":""}" data-cat="${esc(x.c.code)}">${esc(prettyCat(x.c))} · ${x.n}</button>`).join("");
@@ -465,6 +469,7 @@ function renderMain(){
   const list = filtered();
   if (S.tab === "res") return renderResults(list);
   if (S.tab === "cls") return renderStandings(list);
+  if (S.tab === "up") return renderPromotions(list);
   if (S.tab === "clubs") return renderClubs(list);
   if (S.tab === "gyms") return renderGyms(list);
   if (!list.length){
@@ -519,11 +524,11 @@ async function loadResults(force){
         catch(e){ S.oldErr = e.message || String(e); continue; }
       }
       all = all.concat(cache[key]);
-      S.results = all; if (S.tab === "res" || S.tab === "cls"){ S.resLoading = false; renderChips(); renderMain(); S.resLoading = true; }
+      S.results = all; if (S.tab === "res" || S.tab === "cls" || S.tab === "up"){ S.resLoading = false; renderChips(); renderMain(); S.resLoading = true; }
     }
     S.results = all;
   }catch(err){ S.resError = (err && err.message) || String(err); }
-  finally{ S.resLoading = false; if (S.tab === "res" || S.tab === "cls"){ renderChips(); renderMain(); } }
+  finally{ S.resLoading = false; if (S.tab === "res" || S.tab === "cls" || S.tab === "up"){ renderChips(); renderMain(); } }
 }
 function moreResults(){ S.resWeeks += 4; loadResults(true); }
 window.loadResults = loadResults; window.moreResults = moreResults;
@@ -645,7 +650,7 @@ function parseRanks(d, p){
 }
 async function loadRanking(pk, pid, p){
   const prev = S.ranks[pk] || {};
-  S.ranks[pk] = {loading: true, view: prev.view, j: prev.j}; renderMain();
+  S.ranks[pk] = {loading: true, view: prev.view, j: prev.j}; if (S.tab === "cls") renderMain();
   const r = {view: prev.view || "cal", j: prev.j};
   const path = "items/ffbbserver_poules/" + encodeURIComponent(pid || "");
   const deep = ["deep[classements][_limit]=100", "deep[rencontres][_limit]=500", "deep[rencontres][_sort][]=date_rencontre"];
@@ -675,13 +680,113 @@ async function loadRanking(pk, pid, p){
     }catch(e2){ r.calError = (e2 && e2.message) || String(e2); r.matches = []; }
   }
   S.ranks[pk] = r;
-  if (S.tab === "cls") renderMain();
+  if (S.tab === "cls") renderMain(); else if (S.tab === "up") scheduleUpRender();
 }
 function pouleFromKey(pk){
   for (const m of allKnown()){ const k = m.pouleId || (divisionKey(m) + "|" + m.poule); if (k === pk){
     const teams = {}; allKnown().forEach(x => { const kx = x.pouleId || (divisionKey(x) + "|" + x.poule); if (kx === pk){ teams[x.t1.nom] = x.t1; teams[x.t2.nom] = x.t2; } });
     return {id: m.pouleId, teams, compId: m.compId, pouleNom: m.poule, compNom: m.comp, cat: m.cat, sexe: m.sexe}; } }
   return {id: "", teams: {}};
+}
+
+/* ================= Montées ================= */
+function pouleTree(list){
+  const cats = {};
+  list.forEach(m => {
+    if (!m.pouleId && !m.poule) return;
+    const c = cats[m.cat.code] = cats[m.cat.code] || {cat: m.cat, divs: {}};
+    const dk = divisionKey(m);
+    const d = c.divs[dk] = c.divs[dk] || {nom: m.comp, poules: {}};
+    const pk = m.pouleId || (dk + "|" + m.poule);
+    const p = d.poules[pk] = d.poules[pk] || {id: m.pouleId, nom: m.poule || "Poule unique", teams: {}, compId: m.compId, pouleNom: m.poule, compNom: m.comp, cat: m.cat, sexe: m.sexe};
+    p.teams[m.t1.nom] = m.t1; p.teams[m.t2.nom] = m.t2;
+  });
+  return Object.values(cats).sort((a,b) => catSortKey(a.cat) - catSortKey(b.cat) || a.cat.code.localeCompare(b.cat.code))
+    .map(c => ({cat: c.cat, divs: Object.values(c.divs).sort((a,b) => divRank(a.nom) - divRank(b.nom) || a.nom.localeCompare(b.nom))
+      .map(d => ({nom: d.nom, poules: Object.entries(d.poules).sort((a,b) => a[1].nom.localeCompare(b[1].nom, "fr", {numeric:true}))}))}));
+}
+let upTimer = null;
+function scheduleUpRender(){ if (upTimer) return; upTimer = setTimeout(() => { upTimer = null; if (S.tab === "up") renderMain(); }, 400); }
+let upQueue = [], upRunning = 0;
+function queueRankings(entries){
+  entries.forEach(([pk, p]) => { if (!S.ranks[pk] && !upQueue.some(x => x[0] === pk)) upQueue.push([pk, p]); });
+  const next = () => {
+    while (upRunning < 4 && upQueue.length){
+      const [pk, p] = upQueue.shift(); upRunning++;
+      loadRanking(pk, p.id, p).finally(() => { upRunning--; next(); });
+    }
+  };
+  next();
+}
+function promoAnalysis(r, places){
+  const rows = (r.rows || []).slice().sort((a,b) => (a.position||99) - (b.position||99));
+  if (!rows.length) return null;
+  const ms = r.matches || [];
+  const known = !r.partial && ms.length > 0;
+  rows.forEach(x => {
+    let total = null;
+    if (known){
+      const n = ms.filter(m => norm(m.t1.nom) === norm(x.nom) || norm(m.t2.nom) === norm(x.nom)).length;
+      total = n || null;
+    }
+    x.reste = total != null ? Math.max(0, total - x.joues) : null;
+    x.max = x.reste != null ? x.points + 2 * x.reste : null;
+  });
+  const cut = rows[Math.min(places, rows.length) - 1];
+  const outside = rows.slice(places);
+  const bestOutsideMax = outside.length && outside.every(x => x.max != null) ? Math.max(...outside.map(x => x.max)) : (outside.length ? null : -1);
+  const out = [];
+  rows.forEach((x, i) => {
+    let st = null;
+    if (i < places) st = (bestOutsideMax != null && x.points > bestOutsideMax) ? "q" : "z";
+    else if (x.max == null){ if (cut.points - x.points <= 4) st = "p"; }
+    else if (x.max >= cut.points) st = "p";
+    if (st) out.push({...x, st, ecart: Math.max(0, cut.points - x.points)});
+  });
+  return {out, known, finished: known && rows.every(x => x.reste === 0)};
+}
+function renderPromotions(list){
+  const main = $("main");
+  const places = Math.max(1, +store.get("placesMontee", 1) || 1);
+  const tree = pouleTree(list);
+  if (!tree.length){
+    main.innerHTML = S.resLoading ? `<div class="load"><div class="spinner"></div>Recherche des poules…</div>` : `<div class="empty">Aucune poule trouvée.</div>`;
+    return;
+  }
+  const all = []; tree.forEach(c => c.divs.forEach(d => d.poules.forEach(e => all.push(e))));
+  if (S.cat === "ALL" && tree.length > 1){
+    main.innerHTML = `<div class="empty">Choisis une catégorie ci-dessus (U11, U13, Seniors…)<br>pour calculer les montées possibles.<br><br><span class="stat">${all.length} poules au total</span></div>`;
+    return;
+  }
+  queueRankings(all);
+  const done = all.filter(([pk]) => S.ranks[pk] && !S.ranks[pk].loading).length;
+  let html = `<div class="stat">Places de montée par poule : <b>${places}</b> (modifiable dans ⚙️) · ${done}/${all.length} poules analysées</div>`;
+  if (done < all.length) html += `<div class="prog"><i style="width:${Math.round(100*done/all.length)}%"></i></div>`;
+  html += `<div class="stat"><span class="badge2 b-q">Assuré</span> qualifié mathématiquement · <span class="badge2 b-z">En position</span> dans la zone de montée · <span class="badge2 b-p">Encore possible</span> peut encore l'atteindre</div>`;
+  for (const c of tree){
+    html += `<div class="day">${esc(prettyCat(c.cat))}</div>`;
+    c.divs.forEach((d, di) => {
+      const top = di === 0 && divRank(d.nom) <= 1;
+      html += `<div class="div"><div class="hd">${esc(d.nom)}<span>${top ? "montée en région" : "vers la division supérieure"}</span></div>`;
+      for (const [pk, p] of d.poules){
+        const r = S.ranks[pk];
+        html += `<div class="pl"><div class="ph2">${esc(p.nom)}</div>`;
+        if (!r || r.loading){ html += `<div class="mini">Analyse en cours…</div></div>`; continue; }
+        const a = promoAnalysis(r, places);
+        if (!a){ html += `<div class="mini">${r.rankError ? "⚠️ " + esc(r.rankError) : "Classement pas encore disponible."}</div></div>`; continue; }
+        html += `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>Reste</th><th>Max</th></tr>` +
+          a.out.map(x => `<tr><td>${esc(x.position)}</td><td class="tm">${logoHtml({logo: x.logo, club: x.club, nom: x.nom})}<span>${esc(x.nom)}
+            <span class="badge2 ${x.st==="q"?"b-q":x.st==="z"?"b-z":"b-p"}">${x.st==="q"?"Assuré":x.st==="z"?"En position":"Encore possible" + (x.ecart ? " (−" + x.ecart + " pts)" : "")}</span></span></td>
+            <td class="pts">${esc(x.points)}</td><td>${x.reste != null ? esc(x.reste) : "?"}</td><td>${x.max != null ? esc(x.max) : "?"}</td></tr>`).join("") + `</table>`;
+        if (!a.known) html += `<div class="mini">Calendrier complet indisponible : « Encore possible » = à 2 victoires ou moins.</div>`;
+        else if (a.finished) html += `<div class="mini">Phase terminée.</div>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
+    });
+  }
+  html += `<div class="stat">Calcul : victoire 2 pts, défaite 1 pt. Le nombre réel de montées dépend du règlement du comité.</div>`;
+  main.innerHTML = html;
 }
 
 function findMatch(id){
@@ -753,6 +858,8 @@ function showSettings(){
     <input id="setNom" value="${esc(c.nom||"")}" placeholder="ex. COMITE DE L'ESSONNE">
     <label>Identifiant FFBB du comité (optionnel)</label>
     <input id="setId" value="${esc(c.id||"")}" placeholder="détecté automatiquement">
+    <label>Places de montée par poule</label>
+    <input id="setPlaces" type="number" min="1" max="6" value="${esc(store.get("placesMontee", 1))}">
     <button class="btn" id="saveSet">Enregistrer et recharger</button>
     <button class="btn sec" id="resetSet">Réinitialiser la détection automatique</button>
     <button class="btn sec" onclick="closeSheet()">Fermer</button>
@@ -778,12 +885,12 @@ document.addEventListener("click", e => {
   const el = e.target.closest("[data-cat],[data-sexe],[data-tab],[data-go],[data-fav],[data-club],[data-clearclub],.match,#saveSet,#resetSet");
   if (e.target.id === "sheet"){ closeSheet(); return; }
   if (!el) return;
-  if (el.id === "saveSet"){ const nom = $("setNom").value.trim(), id = $("setId").value.trim(); store.set("comite", (nom||id) ? {nom: nom||undefined, id: id||undefined, manual: true} : null); closeSheet(); reload(); return; }
+  if (el.id === "saveSet"){ store.set("placesMontee", Math.max(1, +$("setPlaces").value || 1)); const nom = $("setNom").value.trim(), id = $("setId").value.trim(); store.set("comite", (nom||id) ? {nom: nom||undefined, id: id||undefined, manual: true} : null); closeSheet(); reload(); return; }
   if (el.id === "resetSet"){ store.set("comite", null); closeSheet(); reload(true); return; }
   if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
   if (el.dataset.clearclub){ S.club = null; render(); return; }
-  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if (S.tab === "cls" && !S.results) loadResults(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
+  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up") && !S.results) loadResults(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
   if (el.dataset.go){ e.stopPropagation(); const m = findMatch(el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
   if (el.dataset.fav){
     e.stopPropagation(); const k = el.dataset.fav;
