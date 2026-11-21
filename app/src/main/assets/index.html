@@ -130,6 +130,11 @@ body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
 @keyframes spTitle{to{opacity:1;transform:none}}
 @keyframes spOut{to{opacity:0;visibility:hidden}}
 @media (prefers-reduced-motion: reduce){#splash{animation-delay:.6s}.sp-player,.sp-body,.sp-ball,.sp-shadow,.sp-rim,.sp-net,.sp-dunk{animation-duration:.01s}}
+#ptr{position:fixed;left:50%;top:0;z-index:60;transform:translate(-50%,-60px);width:44px;height:44px;border-radius:50%;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;color:var(--orange2);font-size:22px;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:transform .2s}
+#ptr.spin span{animation:sp .8s linear infinite;display:inline-block}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,80px);background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;z-index:70;transition:transform .25s;max-width:90vw;text-align:center}
+#toast.on{transform:translate(-50%,0)}
+.refresh.spin{animation:sp .8s linear infinite}
 </style>
 </head>
 <body>
@@ -205,6 +210,7 @@ body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
     <button class="tab" data-tab="favs">★ Favoris</button>
   </div>
 </header>
+<div id="ptr"><span>⟳</span></div><div id="toast"></div>
 <main id="main"></main>
 
 <div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
@@ -1480,7 +1486,7 @@ document.addEventListener("click", e => {
 });
 $("prevW").onclick = () => { S.offset--; reload(); };
 $("nextW").onclick = () => { S.offset++; reload(); };
-$("btnRefresh").onclick = () => reload(true);
+$("btnRefresh").onclick = () => refreshAll();
 $("btnSettings").onclick = showSettings;
 $("btnNotif").onclick = () => showNotifSheet();
 let qT; $("q").addEventListener("input", e => { clearTimeout(qT); qT = setTimeout(() => { S.q = e.target.value; renderMain(); }, 150); });
@@ -1488,6 +1494,48 @@ let qT; $("q").addEventListener("input", e => { clearTimeout(qT); qT = setTimeou
 function render(){ renderWeek(); renderChips(); renderMain(); }
 
 const cache = {};
+/* ================= Rafraîchir (bouton ⟳ et glisser vers le bas) ================= */
+let refreshing = false, toastT;
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2600); }
+async function refreshAll(){
+  if (refreshing) return; refreshing = true;
+  $("btnRefresh").classList.add("spin"); $("ptr").classList.add("spin");
+  const before = new Set(allKnown().filter(m => m.joue).map(m => m.id));
+  try{
+    Object.keys(cache).forEach(k => delete cache[k]);       // on oublie tout ce qui était en mémoire
+    try{ localStorage.removeItem("tokens"); }catch(e){}
+    if (S.tab === "nba"){ await loadNba(true); }
+    else {
+      const ms = await loadMatches(weekendRange(S.offset));
+      cache["w" + S.offset] = ms; S.matches = ms; S.error = null;
+      if (S.results || S.tab === "res"){ S.results = null; await loadResults(true); }
+      if (S.tab === "cls" || S.tab === "up" || S.tab === "favs"){ S.ranks = {}; }
+      if (S.matches.some(m => isLiveMatch(m, Date.now()))) await refreshLiveMap();
+      refreshNbaHome();
+    }
+    const fresh = allKnown().filter(m => m.joue && !before.has(m.id)).length;
+    render();
+    const hr = new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    toast(S.tab === "nba" ? `NBA à jour (${hr})` : fresh ? `✅ ${fresh} nouveau${fresh>1?"x":""} résultat${fresh>1?"s":""} · ${hr}` : `À jour · ${hr}`);
+  }catch(e){ toast("⚠️ Impossible d'actualiser : " + (e.message || e)); }
+  finally{ refreshing = false; $("btnRefresh").classList.remove("spin"); $("ptr").classList.remove("spin"); $("ptr").style.transform = ""; }
+}
+window.refreshAll = refreshAll;
+(function(){
+  let y0 = null, pulled = 0;
+  document.addEventListener("touchstart", e => { if (window.scrollY <= 0 && !$("sheet").classList.contains("on") && (!$("splash") || $("splash").classList.contains("gone"))) y0 = e.touches[0].clientY; else y0 = null; }, {passive: true});
+  document.addEventListener("touchmove", e => {
+    if (y0 == null || refreshing) return;
+    pulled = Math.max(0, e.touches[0].clientY - y0);
+    if (pulled > 5 && window.scrollY <= 0) $("ptr").style.transform = `translate(-50%, ${Math.min(pulled * 0.6, 90) - 50}px) rotate(${pulled * 2}deg)`;
+  }, {passive: true});
+  document.addEventListener("touchend", () => {
+    if (y0 == null) return;
+    if (pulled > 90 && !refreshing){ $("ptr").style.transform = "translate(-50%, 30px)"; refreshAll(); }
+    else if (!refreshing) $("ptr").style.transform = "";
+    y0 = null; pulled = 0;
+  });
+})();
 async function reload(force){
   const key = "w" + S.offset;
   renderWeek();
