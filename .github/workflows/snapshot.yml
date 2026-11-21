@@ -1,0 +1,12 @@
+name: Instantane FFBB
+on: workflow_dispatch
+jobs:
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 tools/snapshot.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshot
+          path: snapshot.json
