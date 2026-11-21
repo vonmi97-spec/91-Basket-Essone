@@ -101,9 +101,83 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
 body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
 .settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
 .settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
+#splash{position:fixed;inset:0;z-index:100;background:#0F1B2D;display:flex;flex-direction:column;align-items:center;justify-content:center;animation:spOut .45s ease-in 2.9s forwards}
+#splash.gone{display:none}
+.sp-svg{width:min(92vw,420px);height:auto;border-radius:22px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.sp-player{animation:spPlayer 2.2s cubic-bezier(.45,.05,.55,.95) forwards}
+.sp-body{transform-origin:0 -40px;animation:spBody 2.2s ease-in-out forwards}
+.sp-ball{animation:spBall 2.2s cubic-bezier(.45,.05,.55,.95) forwards}
+.sp-shadow{animation:spShadow 2.2s cubic-bezier(.45,.05,.55,.95) forwards}
+.sp-rim{transform-origin:298px 150px;animation:spRim 2.2s ease-out forwards}
+.sp-net{transform-origin:275px 150px;animation:spNet 2.2s ease-out forwards}
+.sp-dunk{opacity:0;transform-origin:190px 100px;animation:spDunk 2.2s ease-out forwards}
+.sp-title{display:flex;align-items:center;gap:12px;margin-top:22px;opacity:0;transform:translateY(12px);animation:spTitle .5s ease-out 1.7s forwards;color:#EEF2F8}
+.sp-title b{display:block;font-size:24px;font-weight:900}.sp-title span{color:#9DB0CC;font-size:13px}
+.sp-badge{width:52px;height:52px;border-radius:50%;background:#F26B1D;display:grid;place-items:center;font-weight:900;font-size:20px;color:#fff;box-shadow:0 0 0 5px rgba(242,107,29,.25)}
+@keyframes spPlayer{
+  0%{transform:translate(-60px,330px)} 22%{transform:translate(110px,330px)} 28%{transform:translate(130px,334px)}
+  50%{transform:translate(236px,238px)} 56%{transform:translate(242px,246px)} 70%{transform:translate(244px,252px)}
+  86%{transform:translate(250px,330px)} 90%{transform:translate(250px,333px)} 100%{transform:translate(250px,330px)}}
+@keyframes spBody{0%,20%{transform:rotate(8deg)} 28%{transform:scaleY(.88) rotate(10deg)} 40%{transform:rotate(-6deg)} 56%{transform:rotate(-12deg)} 80%{transform:rotate(0)} 100%{transform:rotate(0)}}
+@keyframes spBall{
+  0%{transform:translate(-30px,230px)} 6%{transform:translate(-8px,300px)} 12%{transform:translate(20px,232px)} 18%{transform:translate(48px,300px)} 22%{transform:translate(140px,230px)}
+  28%{transform:translate(160px,236px)} 50%{transform:translate(266px,138px)} 54%{transform:translate(274px,146px)}
+  60%{transform:translate(275px,182px)} 64%{transform:translate(275px,205px)} 76%{transform:translate(272px,320px)} 84%{transform:translate(285px,286px)} 92%{transform:translate(296px,320px)} 100%{transform:translate(304px,320px)}}
+@keyframes spShadow{0%{transform:translateX(-60px)} 22%{transform:translateX(110px)} 50%{transform:translateX(236px) scale(.6);opacity:.12} 70%{transform:translateX(244px) scale(.6);opacity:.12} 86%,100%{transform:translateX(250px);opacity:.3}}
+@keyframes spRim{0%,53%{transform:rotate(0)} 57%{transform:rotate(-9deg)} 66%{transform:rotate(4deg)} 74%{transform:rotate(-2deg)} 82%,100%{transform:rotate(0)}}
+@keyframes spNet{0%,55%{transform:scaleY(1)} 62%{transform:scaleY(1.35) scaleX(.9)} 72%{transform:scaleY(.92)} 82%,100%{transform:scaleY(1)}}
+@keyframes spDunk{0%,54%{opacity:0;transform:scale(.3) rotate(-8deg)} 60%{opacity:1;transform:scale(1.15) rotate(-6deg)} 66%{transform:scale(1) rotate(-6deg)} 90%{opacity:1} 100%{opacity:0;transform:scale(1.05) rotate(-6deg)}}
+@keyframes spTitle{to{opacity:1;transform:none}}
+@keyframes spOut{to{opacity:0;visibility:hidden}}
+@media (prefers-reduced-motion: reduce){#splash{animation-delay:.6s}.sp-player,.sp-body,.sp-ball,.sp-shadow,.sp-rim,.sp-net,.sp-dunk{animation-duration:.01s}}
 </style>
 </head>
 <body>
+<div id="splash" aria-hidden="true">
+  <svg viewBox="0 0 360 420" class="sp-svg">
+    <defs>
+      <radialGradient id="spGlow" cx="50%" cy="35%" r="60%"><stop offset="0" stop-color="#22385C"/><stop offset="1" stop-color="#0F1B2D"/></radialGradient>
+    </defs>
+    <rect width="360" height="420" fill="url(#spGlow)"/>
+    <!-- parquet -->
+    <rect x="0" y="330" width="360" height="90" fill="#C9813F"/>
+    <g stroke="#B06F33" stroke-width="2"><line x1="0" y1="352" x2="360" y2="352"/><line x1="0" y1="378" x2="360" y2="378"/><line x1="0" y1="404" x2="360" y2="404"/></g>
+    <path d="M360 330 C 250 330 230 420 230 420" fill="none" stroke="#FFF3E0" stroke-width="3" opacity=".8"/>
+    <ellipse class="sp-shadow" cx="0" cy="333" rx="22" ry="5" fill="#000" opacity=".3"/>
+    <!-- panier -->
+    <rect x="318" y="60" width="6" height="270" fill="#55657E"/>
+    <rect x="296" y="88" width="10" height="92" rx="2" fill="#E9EEF5"/>
+    <rect x="299" y="118" width="4" height="34" fill="#F26B1D"/>
+    <rect x="306" y="140" width="12" height="6" fill="#55657E"/>
+    <g class="sp-rim">
+      <g class="sp-net">
+        <path d="M255 150 L262 196 L288 196 L295 150 M262 150 L268 196 M275 150 L275 196 M288 150 L282 196 M257 165 L293 165 M260 181 L290 181"
+              fill="none" stroke="#F4F6FA" stroke-width="2" stroke-linejoin="round" opacity=".9"/>
+      </g>
+      <line x1="252" y1="150" x2="298" y2="150" stroke="#F26B1D" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <!-- joueur -->
+    <g class="sp-player">
+      <g class="sp-body">
+        <path d="M0 -45 L-12 -22 L-20 0" fill="none" stroke="#2B1D16" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 -45 L18 -30 L8 -12" fill="none" stroke="#2B1D16" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M-5 -48 L12 -48 L14 -38 L-6 -38 Z" fill="#14213A"/>
+        <path d="M4 -74 L-12 -60 L-18 -48" fill="none" stroke="#2B1D16" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M-2 -46 L0 -80 L14 -80 L13 -46 Z" fill="#F26B1D"/>
+        <text x="6.5" y="-58" font-size="11" font-weight="900" fill="#fff" text-anchor="middle" font-family="system-ui,sans-serif">91</text>
+        <path d="M10 -76 L22 -90 L30 -100" fill="none" stroke="#2B1D16" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="9" cy="-91" r="9" fill="#2B1D16"/>
+      </g>
+    </g>
+    <!-- ballon -->
+    <g class="sp-ball">
+      <circle r="10" fill="#E8742A" stroke="#7A3A12" stroke-width="1.5"/>
+      <path d="M-10 0 H10 M0 -10 V10 M-7 -7 C-2 -2 -2 2 -7 7 M7 -7 C2 -2 2 2 7 7" stroke="#7A3A12" stroke-width="1.3" fill="none"/>
+    </g>
+    <text class="sp-dunk" x="190" y="110" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="900" font-size="34" fill="#FFC83D" stroke="#7A3A12" stroke-width="1.5">DUNK !</text>
+  </svg>
+  <div class="sp-title"><div class="sp-badge">91</div><div><b>Basket Essonne</b><span>Championnat départemental</span></div></div>
+</div>
 <header>
   <div class="brand">
     <div class="badge">91</div>
@@ -135,6 +209,12 @@ body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
 
 <div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
 
+<script>
+(function(){ const sp = document.getElementById("splash"); if (!sp) return;
+  const hide = () => sp.classList.add("gone");
+  sp.addEventListener("click", hide); sp.addEventListener("animationend", e => { if (e.animationName === "spOut") hide(); });
+  setTimeout(hide, 3600); })();
+</script>
 <script>
 "use strict";
 /* ================= Config ================= */
@@ -487,7 +567,8 @@ function renderMain(){
   if (S.tab === "up") return renderPromotions(list);
   if (S.tab === "clubs") return renderClubs(list);
   if (S.tab === "gyms") return renderGyms(list);
-  const favHead = S.tab === "favs" ? favManager() : "";
+  if (S.tab === "matchs" && !S.homeAll) return renderHome(list);
+  const favHead = S.tab === "favs" ? favManager() : (S.tab === "matchs" ? homeToggle(list.length) : "");
   if (!list.length){
     main.innerHTML = favHead + `<div class="empty">${S.tab==="favs" ? (S.favs.length ? "Aucun match de tes équipes favorites ce week-end." : "Pas encore de favoris.<br>Touche ＋ Ajouter, ou ☆ sous une équipe dans un match.") : S.matches.length ? "Aucun match ne correspond à ta recherche." : "Aucun match départemental trouvé pour ce week-end<br>(vacances scolaires ou trêve ?)."}</div>`;
     return;
@@ -1175,6 +1256,53 @@ function showFavPicker(qs){
   if (!S.results && !S.resLoading) loadResults().then(() => { if ($("favList")) draw(); });
 }
 
+/* ================= Accueil : matchs en cours ================= */
+S.homeAll = false; S.nbaHome = [];
+function isLiveMatch(m, now){
+  if (m.joue || !m.date) return false;
+  if (m.date.getHours() === 0 && m.date.getMinutes() === 0) return false;
+  const t = m.date.getTime();
+  return t <= now && now - t < 2.25*3600e3;
+}
+function homeToggle(nAll){
+  const now = Date.now();
+  const nLive = filtered().filter(m => isLiveMatch(m, now)).length + S.nbaHome.filter(g => g.state === "in").length;
+  return `<div class="chips"><button class="chip ${!S.homeAll?"on":""}" data-home="live">● En cours (${nLive})</button><button class="chip ${S.homeAll?"on":""}" data-home="all">Tout le week-end (${nAll})</button></div>`;
+}
+async function refreshNbaHome(){
+  try{
+    const j = await httpJson("GET", "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=" + nbaKey(nbaDefaultDay()), {});
+    S.nbaHome = (j.events || []).map(nbaNorm);
+  }catch(e){ /* NBA indisponible : on n'affiche que l'Essonne */ }
+  if (S.tab === "matchs" && !S.homeAll) renderMain();
+}
+function renderHome(list){
+  const now = Date.now();
+  const live = list.filter(m => isLiveMatch(m, now)).sort((a,b) => a.date - b.date);
+  const nbaLive = S.nbaHome.filter(g => g.state === "in");
+  let html = homeToggle(list.length);
+  if (live.length) html += `<div class="day">● En cours en Essonne (${live.length})</div>` + live.map(matchCard).join("") + `<div class="stat">Le score s'affiche dès que la FFBB le publie (fin de match).</div>`;
+  if (nbaLive.length) html += `<div class="day">● En cours en NBA (${nbaLive.length})</div>` + nbaLive.map(nbaCard).join("");
+  if (!live.length && !nbaLive.length){
+    const next = list.filter(m => m.date && !m.joue && m.date.getTime() > now).sort((a,b) => a.date - b.date);
+    html += `<div class="empty" style="padding:26px 16px">Aucun match en cours pour le moment.</div>`;
+    if (next.length){
+      const first = next[0].date.getTime();
+      const batch = next.filter(m => m.date.getTime() === first);
+      html += `<div class="day">Prochains coups d'envoi · ${esc(fmtDay(next[0].date))} à ${esc(next[0].date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}))}</div>` + batch.slice(0, 6).map(matchCard).join("");
+      if (batch.length > 6) html += `<div class="stat">+ ${batch.length - 6} autres matchs à la même heure</div>`;
+    }
+  }
+  html += `<div class="stat">Actualisation automatique chaque minute.</div>`;
+  $("main").innerHTML = html;
+}
+setInterval(() => {
+  if (S.tab !== "matchs" || S.homeAll) return;
+  refreshNbaHome();
+  if (S.offset === 0 && !S.loading) loadMatches(weekendRange(0)).then(ms => { cache["w0"] = ms; S.matches = ms; if (S.tab === "matchs" && !S.homeAll) renderMain(); }).catch(() => {});
+}, 60000);
+setTimeout(refreshNbaHome, 1500);
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1267,6 +1395,8 @@ document.addEventListener("click", e => {
     else showFavPicker("");
     return;
   }
+  const hm = e.target.closest("[data-home]");
+  if (hm){ S.homeAll = hm.dataset.home === "all"; renderMain(); return; }
   const nd = e.target.closest("[data-nbaday]");
   if (nd){ const k = +nd.dataset.nbaday; if (k){ const d = new Date(S.nbaDay || nbaDefaultDay()); d.setDate(d.getDate() + k); S.nbaDay = d; } loadNba(); return; }
   const nb = e.target.closest("[data-notif]");
