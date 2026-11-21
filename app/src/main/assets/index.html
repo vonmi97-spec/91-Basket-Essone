@@ -242,6 +242,11 @@ function comiteFilter(c){
 async function loadMatches(range){
   let comite = await findComite(range);
   let res = await fetchMatches(range, comite);
+  if (!res.length && range.end < new Date()){
+    // le moteur de recherche FFBB ne garde que ~1 semaine : on interroge la base FFBB pour les week-ends plus anciens
+    try{ res = await fetchMatchesDirectus(range, comite); }catch(e){ S.oldErr = e.message || String(e); }
+    return res;
+  }
   if (!res.length && !comite.manual){
     // la détection via l'annuaire a pu donner un nom/ID différent : on tente via les organisateurs de la période
     const tf = tsFilter(range);
@@ -251,6 +256,21 @@ async function loadMatches(range){
     if (nm && nm !== comite.nom){ comite = {nom: nm}; store.set("comite", comite); res = await fetchMatches(range, comite); }
   }
   return res;
+}
+const RENC_FIELDS = ["id","date","date_rencontre","horaire","numeroJournee","nomEquipe1","nomEquipe2","resultatEquipe1","resultatEquipe2","joue",
+  "competitionId.id","competitionId.nom","competitionId.code","competitionId.sexe","competitionId.categorie.code","competitionId.categorie.libelle","competitionId.categorie.ordre",
+  "idPoule.id","idPoule.nom","salle.libelle","salle.adresse","salle.cartographie.ville","salle.cartographie.codePostal","salle.cartographie.latitude","salle.cartographie.longitude",
+  "idOrganismeEquipe1.id","idOrganismeEquipe1.nom","idOrganismeEquipe1.code","idOrganismeEquipe1.logo",
+  "idOrganismeEquipe2.id","idOrganismeEquipe2.nom","idOrganismeEquipe2.code","idOrganismeEquipe2.logo"];
+function isoLocal(d){ const p = n => String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+async function fetchMatchesDirectus(range, comite){
+  if (!comite.id) throw new Error("ID du comité inconnu");
+  const filter = JSON.stringify({_and: [
+    {competitionId: {organisateur: {_eq: comite.id}}},
+    {date_rencontre: {_between: [isoLocal(range.start), isoLocal(range.end)]}}
+  ]});
+  const j = await directusGet("items/ffbbserver_rencontres", RENC_FIELDS, ["limit=2000", "filter=" + encodeURIComponent(filter)]);
+  return ((j && j.data) || []).map(normalize).filter(m => m.date && m.date >= range.start && m.date <= range.end);
 }
 async function fetchMatches(range, comite){
   const filter = [tsFilter(range), comiteFilter(comite)];
@@ -314,7 +334,8 @@ function team(h, n){
 function normalize(h){
   const s = h.salle || {}; const com = (s.commune && typeof s.commune === "object") ? s.commune : {};
   const carto = (s.cartographie && typeof s.cartographie === "object") ? s.cartographie : {};
-  const geo = h._geo || (carto.latitude ? {lat: carto.latitude, lng: carto.longitude} : null);
+  const cc = carto.coordonnees && carto.coordonnees.coordinates;
+  const geo = h._geo || (carto.latitude ? {lat: +carto.latitude, lng: +carto.longitude} : (cc ? {lat: cc[1], lng: cc[0]} : null));
   const cat = catOf(h);
   const comp = h.competitionId || {};
   const t1 = team(h,1), t2 = team(h,2);
@@ -452,7 +473,7 @@ function renderResults(list){
   if (S.resError){ main.innerHTML = `<div class="err">⚠️ ${esc(S.resError)}<br><button onclick="loadResults(true)">Réessayer</button></div>`; return; }
   if (!S.results){ loadResults(); return; }
   const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>`;
-  if (!list.length){ main.innerHTML = `<div class="empty">Aucun résultat trouvé.</div>` + more; return; }
+  if (!list.length){ main.innerHTML = `<div class="empty">Aucun résultat trouvé.${S.oldErr ? "<br>⚠️ " + esc(S.oldErr) : ""}</div>` + more; return; }
   list.sort((a,b) => (b.date - a.date) || catSortKey(a.cat) - catSortKey(b.cat));
   let html = "", lastW = "", lastDay = "";
   for (const m of list){
@@ -461,7 +482,9 @@ function renderResults(list){
     const day = fmtDay(m.date); if (day !== lastDay){ html += `<div class="day">${esc(day)}</div>`; lastDay = day; }
     html += matchCard(m);
   }
-  html += `<div class="stat">${list.length} résultat${list.length>1?"s":""} · Données FFBB</div>` + more;
+  html += `<div class="stat">${list.length} résultat${list.length>1?"s":""} · Données FFBB</div>`;
+  if (S.oldErr) html += `<div class="stat">⚠️ Certains week-ends anciens n'ont pas pu être récupérés : ${esc(S.oldErr)}</div>`;
+  html += more;
   main.innerHTML = html;
 }
 function weekendOf(d){
@@ -470,14 +493,17 @@ function weekendOf(d){
 }
 async function loadResults(force){
   if (S.resLoading) return;
-  if (force) S.results = null;
+  if (force) S.results = null; S.oldErr = null;
   S.resLoading = true; S.resError = null; if (S.tab === "res") renderMain();
   try{
     const now = new Date(); let all = [];
     for (let w = 0; w >= -S.resWeeks; w--){
       const r = weekendRange(w); if (r.start > now) continue;
       const key = "res" + w;
-      if (!cache[key] || w === 0) cache[key] = (await loadMatches({start: r.start, end: r.end < now ? r.end : now})).filter(m => m.joue);
+      if (!cache[key] || w === 0){
+        try{ cache[key] = (await loadMatches({start: r.start, end: r.end < now ? r.end : now})).filter(m => m.joue); }
+        catch(e){ S.oldErr = e.message || String(e); continue; }
+      }
       all = all.concat(cache[key]);
       S.results = all; if (S.tab === "res" || S.tab === "cls"){ S.resLoading = false; renderChips(); renderMain(); S.resLoading = true; }
     }
@@ -547,7 +573,7 @@ function rankTable(pk, p){
       const me = t && favKeys.has(favKey(t));
       return `<tr class="${me?"me":""}"><td>${esc(x.position || "")}</td><td class="tm">${logoHtml({logo: x.logo || (t && t.logo), club: x.club, nom: x.nom})}${esc(x.nom)}</td>
         <td class="pts">${esc(x.points)}</td><td>${esc(x.joues)}</td><td>${esc(x.gagnes)}</td><td>${esc(x.perdus)}</td><td>${x.diff>0?"+":""}${esc(x.diff)}</td></tr>`;
-    }).join("") + `</table><div class="mini">${r.computed ? "Calculé à partir des résultats FFBB (victoire 2 pts, défaite 1 pt)" : "Classement officiel FFBB"}</div>`;
+    }).join("") + `</table><div class="mini">Classement officiel FFBB</div>`;
 }
 function matchTeam(p, x){
   const teams = Object.values(p.teams);
@@ -563,36 +589,8 @@ async function directusGet(path, fields, extra){
   const qs = fields.map(f => "fields[]=" + encodeURIComponent(f)).concat(extra || []).join("&");
   return httpJson("GET", API + path + "?" + qs, {"Authorization": "Bearer " + tk.dh});
 }
-async function computeRanking(p){
-  // Classement recalculé à partir de tous les matchs joués de la poule (victoire 2 pts, défaite 1 pt, forfait 0)
-  if (!p.compId) throw new Error("Compétition inconnue");
-  const filter = [`competitionId.id = ${q(p.compId)}`]; if (p.pouleNom) filter.push(`idPoule.nom = ${q(p.pouleNom)}`);
-  const [r] = await multiSearch([{indexUid: IDX_R, q: "", limit: 1000, filter}]);
-  const hits = ((r && r.hits) || []).filter(h => !p.id || !h.idPoule || !h.idPoule.id || String(h.idPoule.id) === p.id).map(normalize);
-  const T = {};
-  const row = t => T[t.nom] = T[t.nom] || {nom: t.nom, club: t.club, clubId: t.clubId, logo: t.logo, points: 0, joues: 0, gagnes: 0, perdus: 0, pm: 0, pe: 0};
-  hits.forEach(m => {
-    const a = row(m.t1), b = row(m.t2);
-    if (!m.joue) return;
-    const s1 = parseInt(m.t1.score, 10), s2 = parseInt(m.t2.score, 10);
-    if (isNaN(s1) || isNaN(s2) || s1 === s2) return;
-    a.joues++; b.joues++; a.pm += s1; a.pe += s2; b.pm += s2; b.pe += s1;
-    const forfait = (s1 === 20 && s2 === 0) || (s1 === 0 && s2 === 20);
-    const [w, l] = s1 > s2 ? [a, b] : [b, a];
-    w.gagnes++; w.points += 2; l.perdus++; l.points += forfait ? 0 : 1;
-  });
-  const rows = Object.values(T).map(x => ({...x, diff: x.pm - x.pe}))
-    .sort((x, y) => y.points - x.points || y.diff - x.diff || y.pm - x.pm || x.nom.localeCompare(y.nom));
-  rows.forEach((x, i) => x.position = i + 1);
-  return rows;
-}
 async function loadRanking(pk, pid, p){
   S.ranks[pk] = {loading: true}; renderMain();
-  if (store.get("directusBlocked", 0) > Date.now() - 6*3600e3){
-    try{ S.ranks[pk] = {rows: await computeRanking(p), computed: true}; }
-    catch(err){ S.ranks[pk] = {error: (err && err.message) || String(err)}; }
-    if (S.tab === "cls") renderMain(); return;
-  }
   try{
     if (!pid) throw new Error("Identifiant de poule inconnu");
     let j;
@@ -610,12 +608,9 @@ async function loadRanking(pk, pid, p){
     }).sort((a,b) => (a.position || 99) - (b.position || 99) || b.points - a.points || b.diff - a.diff);
     // nom d'équipe précis (avec numéro) à partir des matchs connus
     rows.forEach(x => { if (!/\d/.test(x.nom)){ const t = matchTeam(p, x); if (t && t.clubId === x.clubId) x.nom = t.nom; } });
-    if (!rows.length) throw new Error("vide");
     S.ranks[pk] = {rows};
   }catch(err){
-    if (err && (err.status === 403 || err.status === 401)) store.set("directusBlocked", Date.now());
-    try{ S.ranks[pk] = {rows: await computeRanking(p), computed: true}; }
-    catch(e2){ S.ranks[pk] = {error: (e2 && e2.message) || String(e2)}; }
+    S.ranks[pk] = {error: (err && err.status === 403) ? "Le serveur de classements FFBB refuse la connexion (HTTP 403)." : ((err && err.message) || String(err))};
   }
   if (S.tab === "cls") renderMain();
 }
