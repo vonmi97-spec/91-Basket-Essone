@@ -115,6 +115,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
   <div class="chips" id="sexes"></div>
   <div class="tabs">
     <button class="tab on" data-tab="matchs">Matchs</button>
+    <button class="tab" data-tab="live">🔴 Direct</button>
     <button class="tab" data-tab="res">Résultats</button>
     <button class="tab" data-tab="cls">Compétitions</button>
     <button class="tab" data-tab="up">⬆⬇ Montées / Maintien / Descentes</button>
@@ -447,7 +448,10 @@ function matchCard(m){
   const noHour = m.date && m.date.getHours() === 0 && m.date.getMinutes() === 0;
   const hr = m.date && !noHour ? m.date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : "Horaire à venir";
   const s1 = +m.t1.score, s2 = +m.t2.score;
+  const nowT = Date.now();
+  const enCours = !m.joue && m.date && !noHour && m.date.getTime() <= nowT && nowT - m.date.getTime() < 2.25*3600e3;
   const mid = m.joue ? `<div class="sc">${esc(m.t1.score)} - ${esc(m.t2.score)}</div><div class="st">Terminé · ${hr}</div>`
+                     : enCours ? `<div class="hr" style="color:#FF6B7F">● ${hr}</div><div class="st">En cours</div>`
                      : `<div class="hr">${hr}</div><div class="st">${m.journee ? "J" + esc(m.journee) : ""}</div>`;
   const sexe = m.sexe === "F" ? " F" : m.sexe === "M" ? " M" : "";
   return `<div class="match" data-id="${esc(m.id)}">
@@ -467,6 +471,7 @@ function renderMain(){
   if (S.loading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Chargement des matchs du week-end…</div>`; return; }
   if (S.error){ main.innerHTML = `<div class="err">⚠️ ${esc(S.error)}<br><button onclick="reload(true)">Réessayer</button></div>`; return; }
   const list = filtered();
+  if (S.tab === "live") return renderLive();
   if (S.tab === "res") return renderResults(list);
   if (S.tab === "cls") return renderStandings(list);
   if (S.tab === "up") return renderPromotions(list);
@@ -901,6 +906,95 @@ function renderPromotions(list){
   main.innerHTML = html;
 }
 
+/* ================= En direct ================= */
+S.lives = null; S.liveErr = null; S.liveAll = false; S.liveAt = 0;
+let liveTimer = null;
+function startLive(){
+  stopLive();
+  refreshLive();
+  liveTimer = setInterval(refreshLive, 30000);   // flux direct toutes les 30 s
+}
+function stopLive(){ if (liveTimer){ clearInterval(liveTimer); liveTimer = null; } }
+let liveTick = 0;
+async function refreshLive(){
+  if (S.tab !== "live"){ stopLive(); return; }
+  try{
+    const r = await http("GET", API + "json/lives.json", {});
+    if (r.status < 200 || r.status >= 300) throw Object.assign(new Error("HTTP " + r.status), {status: r.status});
+    const j = JSON.parse(r.text || "[]");
+    S.lives = Array.isArray(j) ? j : (j.data || []);
+    S.liveErr = null;
+  }catch(e){ S.liveErr = e.status === 403 ? "Le flux direct FFBB refuse la connexion (HTTP 403)." : (e.message || String(e)); }
+  // toutes les 2 minutes : on recharge aussi les matchs du week-end pour récupérer les scores dès leur saisie
+  if (S.offset === 0 && (liveTick++ % 4 === 0)){
+    try{ const ms = await loadMatches(weekendRange(0)); cache["w0"] = ms; S.matches = ms; }catch(e){}
+  }
+  S.liveAt = Date.now();
+  if (S.tab === "live") renderMain();
+}
+function liveClock(l){
+  const per = l.currentPeriod ? String(l.currentPeriod).replace(/^Q/i, "QT") : "";
+  const st = String(l.matchStatus || l.currentStatus || "").toLowerCase();
+  if (/fin|final|end|termin/.test(st)) return "Terminé";
+  if (/mi-temps|half/.test(st)) return "Mi-temps";
+  return [per, l.clock].filter(Boolean).join(" · ") || "En cours";
+}
+function liveIsEssonne(l){
+  const id = String(l.matchId || "");
+  if (id && S.matches.some(m => m.id === id)) return true;
+  const h = norm(l.teamName_home), o = norm(l.teamName_out);
+  return S.matches.some(m => (norm(m.t1.nom) === h && norm(m.t2.nom) === o) || (norm(m.t1.club) && h.includes(norm(m.t1.club)) && o.includes(norm(m.t2.club))));
+}
+function liveCard(l){
+  const m = S.matches.find(x => x.id === String(l.matchId)) || null;
+  const t1 = m ? m.t1 : {nom: l.teamName_home, logo: logoId((l.teamEngagement_home||{}).logo)};
+  const t2 = m ? m.t2 : {nom: l.teamName_out, logo: logoId((l.teamEngagement_out||{}).logo)};
+  const qs = [1,2,3,4].map(i => [l["score_q"+i+"_home"], l["score_q"+i+"_out"]]).filter(x => x[0] != null || x[1] != null);
+  const sh = +l.score_home || 0, so = +l.score_out || 0;
+  return `<div class="match"${m ? ` data-id="${esc(m.id)}"` : ""}>
+    <div class="top"><span class="cat" style="background:#6E1E2C;color:#FFC9D2">● DIRECT</span><span class="comp">${esc(cleanName(l.competitionName || l.competitionAbgName || (m && m.comp) || ""))}</span></div>
+    <div class="teams">
+      <div class="team ${sh>so?"win":""}">${logoHtml(t1)}<div class="nm">${esc(t1.nom)}</div></div>
+      <div class="mid"><div class="sc">${sh} - ${so}</div><div class="st">${esc(liveClock(l))}</div></div>
+      <div class="team ${so>sh?"win":""}">${logoHtml(t2)}<div class="nm">${esc(t2.nom)}</div></div>
+    </div>
+    ${qs.length ? `<div class="gym" style="justify-content:center;gap:10px">${qs.map((q,i) => `<span>QT${i+1} <b>${q[0] ?? "-"}-${q[1] ?? "-"}</b></span>`).join("")}</div>` : ""}
+    ${m && m.salle.nom ? `<div class="gym">📍 <span><b>${esc(m.salle.nom)}</b>${m.salle.ville ? " · " + esc(m.salle.ville) : ""}</span></div>` : ""}
+  </div>`;
+}
+function renderLive(){
+  const main = $("main");
+  const now = Date.now();
+  const all = S.lives || [];
+  const ess = all.filter(liveIsEssonne);
+  const shown = S.liveAll ? all : ess;
+  const words = norm(S.q).split(/\s+/).filter(Boolean);
+  const shownF = shown.filter(l => !words.length || words.every(w => norm([l.teamName_home, l.teamName_out, l.competitionName].join(" ")).includes(w)));
+  // matchs de l'Essonne commencés selon l'horaire (sans live FFBB)
+  const liveIds = new Set(all.map(l => String(l.matchId)));
+  const enCours = filtered().filter(m => m.date && !m.joue && !liveIds.has(m.id) && m.date.getTime() <= now && now - m.date.getTime() < 2.25*3600e3 && !(m.date.getHours() === 0 && m.date.getMinutes() === 0));
+  const finis = filtered().filter(m => m.joue && m.date && now - m.date.getTime() < 4*3600e3).sort((a,b) => b.date - a.date);
+  let html = `<div class="chips"><button class="chip ${!S.liveAll?"on":""}" data-liveall="0">Essonne (${ess.length})</button><button class="chip ${S.liveAll?"on":""}" data-liveall="1">Toute la France (${all.length})</button></div>`;
+  html += `<div class="stat">${S.liveAt ? "Mis à jour à " + new Date(S.liveAt).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}) + " · actualisation auto toutes les 30 s" : "Chargement du direct…"}</div>`;
+  if (S.liveErr) html += `<div class="stat">⚠️ ${esc(S.liveErr)}</div>`;
+  if (shownF.length){
+    html += `<div class="day">● Scores en direct</div>` + shownF.map(liveCard).join("");
+  } else if (S.lives){
+    html += `<div class="empty" style="padding:20px">Aucun score en direct ${S.liveAll ? "en France" : "en Essonne"} pour le moment.<br><span class="stat">Le direct n'existe que pour les matchs suivis en e-Marque V2 avec statistiques live.</span></div>`;
+  }
+  if (enCours.length){
+    html += `<div class="day">⏱ En cours (d'après l'horaire)</div><div class="stat">Score publié par la FFBB à la fin du match.</div>` + enCours.sort((a,b) => a.date - b.date).map(matchCard).join("");
+  }
+  if (finis.length){
+    html += `<div class="day">✔ Terminés récemment</div>` + finis.map(matchCard).join("");
+  }
+  if (!shownF.length && !enCours.length && !finis.length && S.lives){
+    const next = filtered().filter(m => m.date && m.date.getTime() > now).sort((a,b) => a.date - b.date)[0];
+    if (next) html += `<div class="stat">Prochain match : ${esc(fmtDay(next.date))} à ${esc(next.date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}))}</div>` + matchCard(next);
+  }
+  main.innerHTML = html;
+}
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -982,6 +1076,8 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const la = e.target.closest("[data-liveall]");
+  if (la){ S.liveAll = la.dataset.liveall === "1"; renderMain(); return; }
   const um = e.target.closest("[data-upmode]");
   if (um){ S.upMode = um.dataset.upmode; renderMain(); return; }
   const pv = e.target.closest("[data-pview],[data-pj]");
@@ -1006,7 +1102,7 @@ document.addEventListener("click", e => {
   if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
   if (el.dataset.clearclub){ S.club = null; render(); return; }
-  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up") && !S.results) loadResults(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
+  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up") && !S.results) loadResults(); if (S.tab === "live") startLive(); else stopLive(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
   if (el.dataset.go){ e.stopPropagation(); const m = findMatch(el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
   if (el.dataset.fav){
     e.stopPropagation(); const k = el.dataset.fav;
