@@ -91,7 +91,7 @@ table.rk td.pts{font-weight:900;color:var(--orange2)}
 table.rk tr.me td{background:rgba(242,107,29,.12)}
 .mini{font-size:11px;color:var(--mute);padding:6px 12px 10px}
 .badge2{display:inline-block;border-radius:6px;padding:2px 6px;font-size:10.5px;font-weight:800;margin-left:4px;white-space:nowrap}
-.b-q{background:#1E6B45;color:#BFF5D7}.b-z{background:#7A3E12;color:#FFD9BD}.b-p{background:#2A3F62;color:#C9D6EA}
+.b-q{background:#1E6B45;color:#BFF5D7}.b-c{background:#6E1E2C;color:#FFC9D2}.b-d{background:#7A3E12;color:#FFD9BD}.b-m{background:#4A3A12;color:#FFE7A8}.b-z{background:#7A3E12;color:#FFD9BD}.b-p{background:#2A3F62;color:#C9D6EA}
 .prog{height:4px;background:var(--line);border-radius:4px;margin:0 12px 8px;overflow:hidden}.prog i{display:block;height:100%;background:var(--orange)}
 .settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
 .settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
@@ -117,7 +117,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
     <button class="tab on" data-tab="matchs">Matchs</button>
     <button class="tab" data-tab="res">Résultats</button>
     <button class="tab" data-tab="cls">Compétitions</button>
-    <button class="tab" data-tab="up">⬆ Montées</button>
+    <button class="tab" data-tab="up">⬆⬇ Montées / Descentes</button>
     <button class="tab" data-tab="gyms">Gymnases</button>
     <button class="tab" data-tab="clubs">Clubs</button>
     <button class="tab" data-tab="favs">★ Favoris</button>
@@ -745,34 +745,70 @@ function promoAnalysis(r, places){
   });
   return {out, known, finished: known && rows.every(x => x.reste === 0)};
 }
+function relegAnalysis(r, places){
+  const rows = (r.rows || []).slice().sort((a,b) => (a.position||99) - (b.position||99));
+  if (rows.length <= places) return null;
+  promoAnalysis(r, 1); // calcule reste / max sur chaque ligne
+  const n = rows.length, zoneStart = n - places;
+  const safe = rows[zoneStart - 1];                  // dernière place sauvée
+  const zone = rows.slice(zoneStart);
+  const zoneBestMax = zone.every(x => x.max != null) ? Math.max(...zone.map(x => x.max)) : null;
+  const out = [];
+  rows.forEach((x, i) => {
+    let st = null;
+    const min = x.reste != null ? x.points + x.reste : null; // défaites = 1 pt
+    if (i >= zoneStart){
+      st = (x.max != null && x.max < safe.points) ? "c" : "d";
+    } else if (zoneBestMax != null && min != null){
+      if (zoneBestMax >= min) st = "m";
+    } else if (x.points - zone[0].points <= 4){
+      st = "m";
+    }
+    if (st) out.push({...x, st, marge: Math.max(0, x.points - zone[0].points), min});
+  });
+  return {out};
+}
 function renderPromotions(list){
   const main = $("main");
-  const places = Math.max(1, +store.get("placesMontee", 1) || 1);
+  const mode = S.upMode || "up";
+  const places = mode === "up" ? Math.max(1, +store.get("placesMontee", 1) || 1) : Math.max(1, +store.get("placesDescente", 1) || 1);
   const tree = pouleTree(list);
+  const toggle = `<div class="chips"><button class="chip ${mode==="up"?"on":""}" data-upmode="up">⬆ Montées</button><button class="chip ${mode==="down"?"on":""}" data-upmode="down">⬇ Descentes</button></div>`;
   if (!tree.length){
     main.innerHTML = S.resLoading ? `<div class="load"><div class="spinner"></div>Recherche des poules…</div>` : `<div class="empty">Aucune poule trouvée.</div>`;
     return;
   }
   const all = []; tree.forEach(c => c.divs.forEach(d => d.poules.forEach(e => all.push(e))));
   if (S.cat === "ALL" && tree.length > 1){
-    main.innerHTML = `<div class="empty">Choisis une catégorie ci-dessus (U11, U13, Seniors…)<br>pour calculer les montées possibles.<br><br><span class="stat">${all.length} poules au total</span></div>`;
+    main.innerHTML = toggle + `<div class="empty">Choisis une catégorie ci-dessus (U11, U13, Seniors…)<br>pour calculer les ${mode==="up"?"montées":"descentes"} possibles.<br><br><span class="stat">${all.length} poules au total</span></div>`;
     return;
   }
   queueRankings(all);
   const done = all.filter(([pk]) => S.ranks[pk] && !S.ranks[pk].loading).length;
-  let html = `<div class="stat">Places de montée par poule : <b>${places}</b> (modifiable dans ⚙️) · ${done}/${all.length} poules analysées</div>`;
+  let html = toggle + `<div class="stat">Places de ${mode==="up"?"montée":"descente"} par poule : <b>${places}</b> (modifiable dans ⚙️) · ${done}/${all.length} poules analysées</div>`;
   if (done < all.length) html += `<div class="prog"><i style="width:${Math.round(100*done/all.length)}%"></i></div>`;
-  html += `<div class="stat"><span class="badge2 b-q">Assuré</span> qualifié mathématiquement · <span class="badge2 b-z">En position</span> dans la zone de montée · <span class="badge2 b-p">Encore possible</span> peut encore l'atteindre</div>`;
+  html += mode === "up"
+    ? `<div class="stat"><span class="badge2 b-q">Assuré</span> qualifié mathématiquement · <span class="badge2 b-z">En position</span> dans la zone de montée · <span class="badge2 b-p">Encore possible</span> peut encore l'atteindre</div>`
+    : `<div class="stat"><span class="badge2 b-c">Condamné</span> ne peut plus se sauver · <span class="badge2 b-d">En position</span> dans la zone de descente · <span class="badge2 b-m">Menacé</span> peut encore y tomber</div>`;
   for (const c of tree){
     html += `<div class="day">${esc(prettyCat(c.cat))}</div>`;
     c.divs.forEach((d, di) => {
       const top = di === 0 && divRank(d.nom) <= 1;
-      html += `<div class="div"><div class="hd">${esc(d.nom)}<span>${top ? "montée en région" : "vers la division supérieure"}</span></div>`;
+      const last = c.divs.length > 1 && di === c.divs.length - 1;
+      if (mode === "down" && last){ html += `<div class="div"><div class="hd">${esc(d.nom)}<span>dernière division</span></div><div class="mini">Pas de descente depuis la division la plus basse.</div></div>`; return; }
+      html += `<div class="div"><div class="hd">${esc(d.nom)}<span>${mode === "down" ? "vers la division inférieure" : top ? "montée en région" : "vers la division supérieure"}</span></div>`;
       for (const [pk, p] of d.poules){
         const r = S.ranks[pk];
         html += `<div class="pl"><div class="ph2">${esc(p.nom)}</div>`;
         if (!r || r.loading){ html += `<div class="mini">Analyse en cours…</div></div>`; continue; }
-        const a = promoAnalysis(r, places);
+        const a = mode === "up" ? promoAnalysis(r, places) : relegAnalysis(r, places);
+        if (a && mode === "down"){
+          html += `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>Reste</th><th>Max</th></tr>` +
+            a.out.map(x => `<tr><td>${esc(x.position)}</td><td class="tm">${logoHtml({logo: x.logo, club: x.club, nom: x.nom})}<span>${esc(x.nom)}
+              <span class="badge2 ${x.st==="c"?"b-c":x.st==="d"?"b-d":"b-m"}">${x.st==="c"?"Condamné":x.st==="d"?"En position":"Menacé" + (x.marge ? " (+" + x.marge + " pts)" : "")}</span></span></td>
+              <td class="pts">${esc(x.points)}</td><td>${x.reste != null ? esc(x.reste) : "?"}</td><td>${x.max != null ? esc(x.max) : "?"}</td></tr>`).join("") + `</table></div>`;
+          continue;
+        }
         if (!a){ html += `<div class="mini">${r.rankError ? "⚠️ " + esc(r.rankError) : "Classement pas encore disponible."}</div></div>`; continue; }
         html += `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>Reste</th><th>Max</th></tr>` +
           a.out.map(x => `<tr><td>${esc(x.position)}</td><td class="tm">${logoHtml({logo: x.logo, club: x.club, nom: x.nom})}<span>${esc(x.nom)}
@@ -785,7 +821,7 @@ function renderPromotions(list){
       html += `</div>`;
     });
   }
-  html += `<div class="stat">Calcul : victoire 2 pts, défaite 1 pt. Le nombre réel de montées dépend du règlement du comité.</div>`;
+  html += `<div class="stat">Calcul : victoire 2 pts, défaite 1 pt. Le nombre réel de ${mode==="up"?"montées":"descentes"} dépend du règlement du comité.</div>`;
   main.innerHTML = html;
 }
 
@@ -860,6 +896,8 @@ function showSettings(){
     <input id="setId" value="${esc(c.id||"")}" placeholder="détecté automatiquement">
     <label>Places de montée par poule</label>
     <input id="setPlaces" type="number" min="1" max="6" value="${esc(store.get("placesMontee", 1))}">
+    <label>Places de descente par poule</label>
+    <input id="setDown" type="number" min="1" max="6" value="${esc(store.get("placesDescente", 1))}">
     <button class="btn" id="saveSet">Enregistrer et recharger</button>
     <button class="btn sec" id="resetSet">Réinitialiser la détection automatique</button>
     <button class="btn sec" onclick="closeSheet()">Fermer</button>
@@ -868,6 +906,8 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const um = e.target.closest("[data-upmode]");
+  if (um){ S.upMode = um.dataset.upmode; renderMain(); return; }
   const pv = e.target.closest("[data-pview],[data-pj]");
   if (pv){
     const r = S.ranks[pv.dataset.pk]; if (!r) return;
@@ -885,7 +925,7 @@ document.addEventListener("click", e => {
   const el = e.target.closest("[data-cat],[data-sexe],[data-tab],[data-go],[data-fav],[data-club],[data-clearclub],.match,#saveSet,#resetSet");
   if (e.target.id === "sheet"){ closeSheet(); return; }
   if (!el) return;
-  if (el.id === "saveSet"){ store.set("placesMontee", Math.max(1, +$("setPlaces").value || 1)); const nom = $("setNom").value.trim(), id = $("setId").value.trim(); store.set("comite", (nom||id) ? {nom: nom||undefined, id: id||undefined, manual: true} : null); closeSheet(); reload(); return; }
+  if (el.id === "saveSet"){ store.set("placesMontee", Math.max(1, +$("setPlaces").value || 1)); store.set("placesDescente", Math.max(1, +$("setDown").value || 1)); const nom = $("setNom").value.trim(), id = $("setId").value.trim(); store.set("comite", (nom||id) ? {nom: nom||undefined, id: id||undefined, manual: true} : null); closeSheet(); reload(); return; }
   if (el.id === "resetSet"){ store.set("comite", null); closeSheet(); reload(true); return; }
   if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
