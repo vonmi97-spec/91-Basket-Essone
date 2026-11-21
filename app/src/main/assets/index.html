@@ -113,7 +113,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
   <div class="tabs">
     <button class="tab on" data-tab="matchs">Matchs</button>
     <button class="tab" data-tab="res">Résultats</button>
-    <button class="tab" data-tab="cls">Classements</button>
+    <button class="tab" data-tab="cls">Compétitions</button>
     <button class="tab" data-tab="gyms">Gymnases</button>
     <button class="tab" data-tab="clubs">Clubs</button>
     <button class="tab" data-tab="favs">★ Favoris</button>
@@ -427,7 +427,8 @@ function clubName(id){
 }
 
 function matchCard(m){
-  const hr = m.date ? m.date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : "--:--";
+  const noHour = m.date && m.date.getHours() === 0 && m.date.getMinutes() === 0;
+  const hr = m.date && !noHour ? m.date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : "Horaire à venir";
   const s1 = +m.t1.score, s2 = +m.t2.score;
   const mid = m.joue ? `<div class="sc">${esc(m.t1.score)} - ${esc(m.t2.score)}</div><div class="st">Terminé · ${hr}</div>`
                      : `<div class="hr">${hr}</div><div class="st">${m.journee ? "J" + esc(m.journee) : ""}</div>`;
@@ -545,7 +546,7 @@ function renderStandings(list){
       html += `<div class="div"><div class="hd">${esc(d.nom)}<span>${poules.length} poule${poules.length>1?"s":""}</span></div>`;
       for (const [pk, p] of poules){
         const open = !!S.open[pk];
-        html += `<div class="pl"><div class="ph2" data-poule="${esc(pk)}" data-pid="${esc(p.id||"")}">${esc(p.nom)} <i>${open ? "▲" : "▼ Classement"}</i></div>`;
+        html += `<div class="pl"><div class="ph2" data-poule="${esc(pk)}" data-pid="${esc(p.id||"")}">${esc(p.nom)} <i>${open ? "▲" : "▼ Calendrier · Classement"}</i></div>`;
         if (open) html += rankTable(pk, p);
         html += `</div>`;
       }
@@ -564,10 +565,13 @@ function divRank(nom){
 function rankTable(pk, p){
   const r = S.ranks[pk];
   if (!r || r.loading) return `<div class="mini"><div class="spinner" style="width:22px;height:22px;border-width:3px;margin:6px auto"></div></div>`;
-  if (r.error) return `<div class="mini">⚠️ ${esc(r.error)} <button class="chip" data-poule-retry="${esc(pk)}">Réessayer</button></div>`;
-  if (!r.rows.length) return `<div class="mini">Classement pas encore disponible sur la FFBB.</div>`;
+  const view = r.view || "cal";
+  let html = `<div class="chips" style="padding:0 12px 8px"><button class="chip ${view==="cal"?"on":""}" data-pview="cal" data-pk="${esc(pk)}">Calendrier</button><button class="chip ${view==="rk"?"on":""}" data-pview="rk" data-pk="${esc(pk)}">Classement</button></div>`;
+  if (view === "cal") return html + calTable(pk, p, r);
+  if (r.rankError) return html + `<div class="mini">⚠️ ${esc(r.rankError)} <button class="chip" data-poule-retry="${esc(pk)}">Réessayer</button></div>`;
+  if (!r.rows || !r.rows.length) return html + `<div class="mini">Classement pas encore disponible sur la FFBB.</div>`;
   const favKeys = new Set(S.favs.map(f => f.key));
-  return `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>P</th><th>Diff</th></tr>` +
+  return html + `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>P</th><th>Diff</th></tr>` +
     r.rows.map(x => {
       const t = matchTeam(p, x);
       const me = t && favKeys.has(favKey(t));
@@ -575,52 +579,103 @@ function rankTable(pk, p){
         <td class="pts">${esc(x.points)}</td><td>${esc(x.joues)}</td><td>${esc(x.gagnes)}</td><td>${esc(x.perdus)}</td><td>${x.diff>0?"+":""}${esc(x.diff)}</td></tr>`;
     }).join("") + `</table><div class="mini">Classement officiel FFBB</div>`;
 }
+function calTable(pk, p, r){
+  const ms = r.matches || [];
+  if (!ms.length) return `<div class="mini">${r.calError ? "⚠️ " + esc(r.calError) + ` <button class="chip" data-poule-retry="${esc(pk)}">Réessayer</button>` : "Aucun match trouvé pour cette poule."}</div>`;
+  const js = [...new Set(ms.map(m => +m.journee || 0))].sort((a,b) => a - b);
+  if (r.j == null || !js.includes(r.j)){
+    // journée par défaut : la première qui n'est pas entièrement jouée, sinon la dernière
+    const next = js.find(j => ms.some(m => (+m.journee||0) === j && !m.joue));
+    r.j = next != null ? next : js[js.length - 1];
+  }
+  let html = `<div class="chips" style="padding:0 12px 6px">` + js.map(j => `<button class="chip ${j===r.j?"on":""}" data-pj="${j}" data-pk="${esc(pk)}">${j ? "J" + j : "?"}</button>`).join("") + `</div>`;
+  const list = ms.filter(m => (+m.journee||0) === r.j).sort((a,b) => (a.date||0) - (b.date||0));
+  let lastDay = "";
+  html += `<div style="padding:0 8px 8px">`;
+  for (const m of list){
+    const day = m.date ? fmtDay(m.date) : "Date à venir";
+    if (day !== lastDay){ html += `<div class="group" style="margin-left:4px">${esc(day)}</div>`; lastDay = day; }
+    html += matchCard(m);
+  }
+  html += `</div>`;
+  if (r.partial) html += `<div class="mini">⚠️ Calendrier partiel (seulement les matchs récents et à venir) : la base complète FFBB n'a pas répondu.</div>`;
+  return html;
+}
 function matchTeam(p, x){
   const teams = Object.values(p.teams);
   return teams.find(t => norm(t.nom) === norm(x.nom)) || teams.find(t => x.clubId && t.clubId === x.clubId) || null;
 }
-const RANK_FIELDS_FULL = ["id","nom","classements.position","classements.points","classements.matchJoues","classements.gagnes","classements.perdus",
+const RANK_FIELDS = ["id","nom","classements.position","classements.points","classements.matchJoues","classements.gagnes","classements.perdus",
   "classements.nuls","classements.paniersMarques","classements.paniersEncaisses","classements.difference","classements.horsClassement",
   "classements.organisme_nom","classements.organisme.id","classements.organisme.nom","classements.organisme.logo.id","classements.idEngagement.nom","classements.idEngagement.id"];
-const RANK_FIELDS_MIN = ["id","nom","classements.position","classements.points","classements.matchJoues","classements.gagnes","classements.perdus",
-  "classements.difference","classements.paniersMarques","classements.paniersEncaisses","classements.organisme_nom","classements.organisme","classements.idEngagement"];
+const POULE_RENC_FIELDS = ["id","date","date_rencontre","horaire","numeroJournee","nomEquipe1","nomEquipe2","resultatEquipe1","resultatEquipe2","joue",
+  "salle.libelle","salle.adresse","salle.cartographie.ville","salle.cartographie.codePostal","salle.cartographie.latitude","salle.cartographie.longitude",
+  "idOrganismeEquipe1.id","idOrganismeEquipe1.nom","idOrganismeEquipe1.code","idOrganismeEquipe1.logo",
+  "idOrganismeEquipe2.id","idOrganismeEquipe2.nom","idOrganismeEquipe2.code","idOrganismeEquipe2.logo"].map(f => "rencontres." + f);
 async function directusGet(path, fields, extra){
   const tk = await getTokens();
   const qs = fields.map(f => "fields[]=" + encodeURIComponent(f)).concat(extra || []).join("&");
   return httpJson("GET", API + path + "?" + qs, {"Authorization": "Bearer " + tk.dh});
 }
+function parseRanks(d, p){
+  const rows = (d.classements || []).filter(c => c && !c.horsClassement).map(c => {
+    const org = (c.organisme && typeof c.organisme === "object") ? c.organisme : {};
+    const eng = (c.idEngagement && typeof c.idEngagement === "object") ? c.idEngagement : {};
+    const nom = eng.nom || c.organisme_nom || org.nom || "?";
+    const pm = +c.paniersMarques || 0, pe = +c.paniersEncaisses || 0;
+    return { position: +c.position || 0, nom, club: org.nom || c.organisme_nom || "", clubId: org.id ? String(org.id) : (typeof c.organisme !== "object" && c.organisme ? String(c.organisme) : ""),
+             logo: logoId(org.logo), points: +c.points || 0, joues: +c.matchJoues || 0, gagnes: +c.gagnes || 0, perdus: +c.perdus || 0,
+             diff: c.difference != null ? +c.difference : pm - pe };
+  }).sort((a,b) => (a.position || 99) - (b.position || 99) || b.points - a.points || b.diff - a.diff);
+  rows.forEach(x => { if (!/\d/.test(x.nom)){ const t = matchTeam(p, x); if (t && t.clubId === x.clubId) x.nom = t.nom; } });
+  return rows;
+}
 async function loadRanking(pk, pid, p){
-  S.ranks[pk] = {loading: true}; renderMain();
+  const prev = S.ranks[pk] || {};
+  S.ranks[pk] = {loading: true, view: prev.view, j: prev.j}; renderMain();
+  const r = {view: prev.view || "cal", j: prev.j};
+  const path = "items/ffbbserver_poules/" + encodeURIComponent(pid || "");
+  const deep = ["deep[classements][_limit]=100", "deep[rencontres][_limit]=500", "deep[rencontres][_sort][]=date_rencontre"];
   try{
     if (!pid) throw new Error("Identifiant de poule inconnu");
     let j;
-    try{ j = await directusGet("items/ffbbserver_poules/" + encodeURIComponent(pid), RANK_FIELDS_FULL, ["deep[classements][_limit]=100"]); }
-    catch(e){ if (e.status === 401){ await getTokens(true); } j = await directusGet("items/ffbbserver_poules/" + encodeURIComponent(pid), RANK_FIELDS_MIN, ["deep[classements][_limit]=100"]); }
+    try{ j = await directusGet(path, RANK_FIELDS.concat(POULE_RENC_FIELDS), deep); }
+    catch(e){
+      if (e.status === 401) await getTokens(true);
+      // si les champs détaillés sont refusés, on demande le minimum
+      j = await directusGet(path, ["id","nom","classements.*","rencontres.*"], deep);
+    }
     const d = (j && j.data) || {};
-    const rows = (d.classements || []).filter(c => c && !c.horsClassement).map(c => {
-      const org = (c.organisme && typeof c.organisme === "object") ? c.organisme : {};
-      const eng = (c.idEngagement && typeof c.idEngagement === "object") ? c.idEngagement : {};
-      const nom = eng.nom || c.organisme_nom || org.nom || "?";
-      const pm = +c.paniersMarques || 0, pe = +c.paniersEncaisses || 0;
-      return { position: +c.position || 0, nom, club: org.nom || c.organisme_nom || "", clubId: org.id ? String(org.id) : (typeof c.organisme !== "object" && c.organisme ? String(c.organisme) : ""),
-               logo: logoId(org.logo), points: +c.points || 0, joues: +c.matchJoues || 0, gagnes: +c.gagnes || 0, perdus: +c.perdus || 0,
-               diff: c.difference != null ? +c.difference : pm - pe };
-    }).sort((a,b) => (a.position || 99) - (b.position || 99) || b.points - a.points || b.diff - a.diff);
-    // nom d'équipe précis (avec numéro) à partir des matchs connus
-    rows.forEach(x => { if (!/\d/.test(x.nom)){ const t = matchTeam(p, x); if (t && t.clubId === x.clubId) x.nom = t.nom; } });
-    S.ranks[pk] = {rows};
+    r.rows = parseRanks(d, p);
+    const renc = (d.rencontres || []).filter(x => x && typeof x === "object");
+    r.matches = renc.map(h => { const m = normalize(h); m.comp = p.compNom || m.comp; m.cat = p.cat || m.cat; m.sexe = p.sexe || m.sexe; m.poule = p.pouleNom || m.poule; return m; });
   }catch(err){
-    S.ranks[pk] = {error: (err && err.status === 403) ? "Le serveur de classements FFBB refuse la connexion (HTTP 403)." : ((err && err.message) || String(err))};
+    r.rankError = (err && err.status === 403) ? "Le serveur FFBB des classements refuse la connexion (HTTP 403)." : ((err && err.message) || String(err));
   }
+  if (!r.matches || !r.matches.length){
+    // repli : moteur de recherche FFBB (matchs récents et à venir uniquement)
+    try{
+      const filter = [`competitionId.id = ${q(p.compId)}`]; if (p.pouleNom) filter.push(`idPoule.nom = ${q(p.pouleNom)}`);
+      const [res] = await multiSearch([{indexUid: IDX_R, q: "", limit: 1000, filter}]);
+      r.matches = ((res && res.hits) || []).filter(h => !p.id || !h.idPoule || !h.idPoule.id || String(h.idPoule.id) === p.id).map(normalize);
+      r.partial = r.matches.length > 0;
+    }catch(e2){ r.calError = (e2 && e2.message) || String(e2); r.matches = []; }
+  }
+  S.ranks[pk] = r;
   if (S.tab === "cls") renderMain();
 }
 function pouleFromKey(pk){
   for (const m of allKnown()){ const k = m.pouleId || (divisionKey(m) + "|" + m.poule); if (k === pk){
     const teams = {}; allKnown().forEach(x => { const kx = x.pouleId || (divisionKey(x) + "|" + x.poule); if (kx === pk){ teams[x.t1.nom] = x.t1; teams[x.t2.nom] = x.t2; } });
-    return {id: m.pouleId, teams, compId: m.compId, pouleNom: m.poule}; } }
+    return {id: m.pouleId, teams, compId: m.compId, pouleNom: m.poule, compNom: m.comp, cat: m.cat, sexe: m.sexe}; } }
   return {id: "", teams: {}};
 }
 
+function findMatch(id){
+  let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
+  if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
+  return m;
+}
 function renderGyms(list){
   const g = {};
   list.forEach(m => { const k = (m.salle.nom||"Gymnase non précisé") + "|" + m.salle.ville; (g[k] = g[k] || {s:m.salle, ms:[]}).ms.push(m); });
@@ -661,7 +716,7 @@ function favBtn(t){
   return `<button class="star ${on?"on":""}" data-fav="${esc(favKey(t))}" data-favname="${esc(t.nom)}">${on?"★":"☆"}</button>`;
 }
 function showMatch(id){
-  const m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id); if (!m) return;
+  const m = findMatch(id); if (!m) return;
   const dt = m.date ? m.date.toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}) : "—";
   openSheet(`<h2>${esc(m.comp)}</h2>
     <div class="teams">
@@ -693,6 +748,12 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const pv = e.target.closest("[data-pview],[data-pj]");
+  if (pv){
+    const r = S.ranks[pv.dataset.pk]; if (!r) return;
+    if (pv.dataset.pview) r.view = pv.dataset.pview; else r.j = +pv.dataset.pj;
+    renderMain(); return;
+  }
   const pl = e.target.closest("[data-poule],[data-poule-retry]");
   if (pl){
     const pk = pl.dataset.poule || pl.dataset.pouleRetry; const p = pouleFromKey(pk);
@@ -710,7 +771,7 @@ document.addEventListener("click", e => {
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
   if (el.dataset.clearclub){ S.club = null; render(); return; }
   if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if (S.tab === "cls" && !S.results) loadResults(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
-  if (el.dataset.go){ e.stopPropagation(); const m = S.matches.find(x => x.id === el.dataset.go) || (S.results||[]).find(x => x.id === el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
+  if (el.dataset.go){ e.stopPropagation(); const m = findMatch(el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
   if (el.dataset.fav){
     e.stopPropagation(); const k = el.dataset.fav;
     const i = S.favs.findIndex(f => f.key === k);
