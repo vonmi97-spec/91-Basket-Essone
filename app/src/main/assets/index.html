@@ -331,6 +331,19 @@ function team(h, n){
     score: h["resultatEquipe"+n]
   };
 }
+function cleanName(x){
+  if (!x) return "";
+  x = String(x);
+  if (x.includes("|")){
+    // format FFBB "id|Nom|uuid|DIV|…" : on garde le premier morceau qui ressemble à un nom
+    const parts = x.split("|").map(t => t.trim()).filter(Boolean);
+    return parts.find(t => /[A-Za-zÀ-ÿ]{3,}/.test(t) && !/^[0-9a-f-]{20,}$/i.test(t)) || parts[0] || "";
+  }
+  return x;
+}
+function compName(comp, h){
+  return cleanName(comp.nom) || cleanName(comp.nomExtended) || cleanName(h.nomExtended) || "Compétition";
+}
 function normalize(h){
   const s = h.salle || {}; const com = (s.commune && typeof s.commune === "object") ? s.commune : {};
   const carto = (s.cartographie && typeof s.cartographie === "object") ? s.cartographie : {};
@@ -343,7 +356,7 @@ function normalize(h){
   return {
     id: String(h.id || h.uniqueKey || Math.random()),
     date: parseDate(h), cat, sexe: sexeOf(h),
-    comp: comp.nomExtended || comp.nom || h.nomExtended || "Compétition",
+    comp: compName(comp, h),
     compCode: comp.code || "", compId: comp.id ? String(comp.id) : "", pouleId: (h.idPoule && h.idPoule.id) ? String(h.idPoule.id) : "", poule: (h.idPoule && h.idPoule.nom) || "", journee: h.numeroJournee,
     t1, t2, joue,
     salle: { nom: s.libelle || s.libelle2 || "", adresse: [s.adresse, s.adresseComplement].filter(Boolean).join(" "),
