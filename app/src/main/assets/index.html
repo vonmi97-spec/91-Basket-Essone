@@ -94,6 +94,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
 .badge2{display:inline-block;border-radius:6px;padding:2px 6px;font-size:10.5px;font-weight:800;margin-left:4px;white-space:nowrap}
 .b-q{background:#1E6B45;color:#BFF5D7}.b-c{background:#6E1E2C;color:#FFC9D2}.b-d{background:#7A3E12;color:#FFD9BD}.b-m{background:#4A3A12;color:#FFE7A8}.b-s{background:#1F4E6B;color:#CDEBFF}.b-s2{background:#2A3F62;color:#C9D6EA}.b-z{background:#7A3E12;color:#FFD9BD}.b-p{background:#2A3F62;color:#C9D6EA}
 .prog{height:4px;background:var(--line);border-radius:4px;margin:0 12px 8px;overflow:hidden}.prog i{display:block;height:100%;background:var(--orange)}
+body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
 .settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
 .settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
 </style>
@@ -121,6 +122,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
     <button class="tab" data-tab="res">Résultats</button>
     <button class="tab" data-tab="cls">Compétitions</button>
     <button class="tab" data-tab="up">⬆⬇ Montées / Maintien / Descentes</button>
+    <button class="tab" data-tab="nba">🏀 NBA</button>
     <button class="tab" data-tab="gyms">Gymnases</button>
     <button class="tab" data-tab="clubs">Clubs</button>
     <button class="tab" data-tab="favs">★ Favoris</button>
@@ -473,6 +475,7 @@ function renderMain(){
   if (S.loading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Chargement des matchs du week-end…</div>`; return; }
   if (S.error){ main.innerHTML = `<div class="err">⚠️ ${esc(S.error)}<br><button onclick="reload(true)">Réessayer</button></div>`; return; }
   const list = filtered();
+  if (S.tab === "nba") return renderNba();
   if (S.tab === "live") return renderLive();
   if (S.tab === "res") return renderResults(list);
   if (S.tab === "cls") return renderStandings(list);
@@ -1047,6 +1050,87 @@ function handleNotifClick(act){
   else if (act === "off"){ S.notif.enabled = false; saveNotif(); showNotifSheet("Notifications désactivées."); }
 }
 
+/* ================= NBA (flux public ESPN) ================= */
+S.nbaDay = null; S.nba = null; S.nbaErr = null; S.nbaLoading = false; S.nbaAt = 0;
+let nbaTimer = null;
+function nbaDefaultDay(){
+  // matchs NBA = soirée américaine = nuit en France : on décale de 10 h pour tomber sur « la nuit dernière »
+  const d = new Date(Date.now() - 10*3600e3); d.setHours(12,0,0,0); return d;
+}
+function nbaKey(d){ const p = n => String(n).padStart(2,"0"); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`; }
+async function loadNba(silent){
+  if (!S.nbaDay) S.nbaDay = nbaDefaultDay();
+  if (!silent){ S.nbaLoading = true; S.nbaErr = null; renderMain(); }
+  try{
+    const j = await httpJson("GET", "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=" + nbaKey(S.nbaDay), {});
+    S.nba = (j.events || []).map(nbaNorm).sort((a,b) => a.date - b.date);
+    S.nbaErr = null; S.nbaAt = Date.now();
+  }catch(e){ S.nbaErr = e.message || String(e); if (!silent) S.nba = []; }
+  S.nbaLoading = false;
+  if (S.tab === "nba") renderMain();
+  // actualisation auto toutes les 30 s s'il y a des matchs en cours
+  clearTimeout(nbaTimer);
+  if (S.tab === "nba" && (S.nba || []).some(g => g.state === "in")) nbaTimer = setTimeout(() => loadNba(true), 30000);
+}
+function nbaNorm(ev){
+  const c = (ev.competitions && ev.competitions[0]) || {};
+  const st = (ev.status && ev.status.type) || {};
+  const team = cp => {
+    const t = cp.team || {};
+    const rec = (cp.records || []).find(r => r.type === "total" || r.name === "overall");
+    return { nom: t.displayName || t.name || "?", abbr: t.abbreviation || "", logo: t.logo || "", score: cp.score,
+             winner: cp.winner === true, record: rec ? rec.summary : "", ls: (cp.linescores || []).map(l => l.value != null ? l.value : l.displayValue) };
+  };
+  const comps = c.competitors || [];
+  const home = comps.find(x => x.homeAway === "home") || comps[1] || {}, away = comps.find(x => x.homeAway === "away") || comps[0] || {};
+  return { id: ev.id, date: new Date(ev.date), state: st.state || "pre", completed: !!st.completed, detail: st.shortDetail || st.detail || "",
+           clock: ev.status && ev.status.displayClock, period: ev.status && ev.status.period,
+           away: team(away), home: team(home), venue: c.venue ? [c.venue.fullName, c.venue.address && c.venue.address.city].filter(Boolean).join(" · ") : "",
+           tv: (c.broadcasts || []).flatMap(b => b.names || []).join(", ") };
+}
+function nbaLogo(t){
+  return t.logo ? `<img class="logo" loading="lazy" alt="" src="${esc(t.logo)}" onerror="this.outerHTML='<div class=&quot;logo ph&quot;>${esc(t.abbr)}</div>'">`
+                : `<div class="logo ph">${esc(t.abbr || "?")}</div>`;
+}
+function nbaCard(g){
+  const hr = g.date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+  const done = g.state === "post", live = g.state === "in";
+  const a = +g.away.score || 0, h = +g.home.score || 0;
+  const mid = done ? `<div class="sc">${a} - ${h}</div><div class="st">Terminé${/OT/.test(g.detail) ? " (" + esc(g.detail.replace(/^Final\/?/,"")) + ")" : ""}</div>`
+            : live ? `<div class="sc" style="color:#FF6B7F">${a} - ${h}</div><div class="st">● QT${esc(g.period)} · ${esc(g.clock || "")}</div>`
+            : `<div class="hr">${hr}</div><div class="st">${esc(g.date.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}))}</div>`;
+  const qs = Math.max(g.away.ls.length, g.home.ls.length);
+  const lines = (done || live) && qs ? `<div class="gym" style="justify-content:center;gap:10px;flex-wrap:wrap">${Array.from({length: qs}, (_, i) => `<span>${i < 4 ? "QT" + (i+1) : "Prol." + (i-3)} <b>${esc(g.away.ls[i] ?? "-")}-${esc(g.home.ls[i] ?? "-")}</b></span>`).join("")}</div>` : "";
+  return `<div class="match">
+    <div class="top"><span class="cat" style="background:#1D428A;color:#fff">NBA</span><span class="comp">${esc(g.away.abbr)} @ ${esc(g.home.abbr)}${g.tv ? " · " + esc(g.tv) : ""}</span></div>
+    <div class="teams">
+      <div class="team ${done && a>h ? "win":""}">${nbaLogo(g.away)}<div class="nm">${esc(g.away.nom)}</div><div class="st" style="font-size:11px;color:var(--mute)">${esc(g.away.record)}</div></div>
+      <div class="mid">${mid}</div>
+      <div class="team ${done && h>a ? "win":""}">${nbaLogo(g.home)}<div class="nm">${esc(g.home.nom)}</div><div class="st" style="font-size:11px;color:var(--mute)">${esc(g.home.record)}</div></div>
+    </div>
+    ${lines}
+    ${g.venue ? `<div class="gym">🏟 <span>${esc(g.venue)}</span></div>` : ""}
+  </div>`;
+}
+function renderNba(){
+  const main = $("main");
+  if (!S.nbaDay) S.nbaDay = nbaDefaultDay();
+  const isDefault = nbaKey(S.nbaDay) === nbaKey(nbaDefaultDay());
+  let html = `<div class="week" style="margin:4px 0 8px"><button data-nbaday="-1" aria-label="Jour précédent">‹</button>
+    <div class="lbl"><b>${isDefault ? "La nuit dernière" : esc(S.nbaDay.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}))}</b>
+    <span>Soirée US du ${esc(S.nbaDay.toLocaleDateString("fr-FR",{day:"numeric",month:"short"}))} · heures françaises</span></div>
+    <button data-nbaday="1" aria-label="Jour suivant">›</button></div>`;
+  if (S.nbaLoading){ main.innerHTML = html + `<div class="load"><div class="spinner"></div>Chargement des matchs NBA…</div>`; return; }
+  if (S.nbaErr && !(S.nba||[]).length){ main.innerHTML = html + `<div class="err">⚠️ ${esc(S.nbaErr)}<br><button data-nbaday="0">Réessayer</button></div>`; return; }
+  const words = norm(S.q).split(/\s+/).filter(Boolean);
+  const list = (S.nba || []).filter(g => !words.length || words.every(w => norm([g.away.nom, g.home.nom, g.away.abbr, g.home.abbr].join(" ")).includes(w)));
+  if (!list.length){ main.innerHTML = html + `<div class="empty">Aucun match NBA ce jour-là.</div>`; return; }
+  const groups = [["● En cours", list.filter(g => g.state === "in")], ["Résultats", list.filter(g => g.state === "post")], ["À venir", list.filter(g => g.state === "pre")]];
+  groups.forEach(([t, l]) => { if (l.length) html += `<div class="day">${t} (${l.length})</div>` + l.map(nbaCard).join(""); });
+  html += `<div class="stat">Source : ESPN${S.nbaAt ? " · mis à jour à " + new Date(S.nbaAt).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : ""}${list.some(g => g.state === "in") ? " · actualisation auto 30 s" : ""}</div>`;
+  main.innerHTML = html;
+}
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1128,6 +1212,8 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const nd = e.target.closest("[data-nbaday]");
+  if (nd){ const k = +nd.dataset.nbaday; if (k){ const d = new Date(S.nbaDay || nbaDefaultDay()); d.setDate(d.getDate() + k); S.nbaDay = d; } loadNba(); return; }
   const nb = e.target.closest("[data-notif]");
   if (nb){ handleNotifClick(nb.dataset.notif); return; }
   const la = e.target.closest("[data-liveall]");
@@ -1156,7 +1242,7 @@ document.addEventListener("click", e => {
   if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
   if (el.dataset.clearclub){ S.club = null; render(); return; }
-  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up") && !S.results) loadResults(); if (S.tab === "live") startLive(); else stopLive(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
+  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up") && !S.results) loadResults(); if (S.tab === "live") startLive(); else stopLive(); if (S.tab === "nba") loadNba(); document.body.classList.toggle("nba", S.tab === "nba"); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
   if (el.dataset.go){ e.stopPropagation(); const m = findMatch(el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
   if (el.dataset.fav){
     e.stopPropagation(); const k = el.dataset.fav;
