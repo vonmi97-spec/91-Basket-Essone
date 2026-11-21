@@ -99,6 +99,8 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
 .b-q{background:#1E6B45;color:#BFF5D7}.b-c{background:#6E1E2C;color:#FFC9D2}.b-d{background:#7A3E12;color:#FFD9BD}.b-m{background:#4A3A12;color:#FFE7A8}.b-s{background:#1F4E6B;color:#CDEBFF}.b-s2{background:#2A3F62;color:#C9D6EA}.b-z{background:#7A3E12;color:#FFD9BD}.b-p{background:#2A3F62;color:#C9D6EA}
 .prog{height:4px;background:var(--line);border-radius:4px;margin:0 12px 8px;overflow:hidden}.prog i{display:block;height:100%;background:var(--orange)}
 body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
+.ffbblink{display:flex;align-items:center;gap:10px;width:100%;margin:8px 0 4px;padding:11px 12px;border-radius:12px;border:1px solid #2E5AA8;background:linear-gradient(90deg,#1B3A75,#17263D);color:#EEF2F8;font-weight:800;font-size:14px;text-align:left}
+.ffbblink small{display:block;font-weight:500;color:#AFC3E6;font-size:12px}.ffbblink i{margin-left:auto;font-style:normal;color:#9DC0FF}
 .settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
 .settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
 #splash{position:fixed;inset:0;z-index:100;background:#0F1B2D;display:flex;flex-direction:column;align-items:center;justify-content:center;animation:spOut .45s ease-in 2.9s forwards}
@@ -597,9 +599,9 @@ function renderResults(list){
   if (S.resError){ main.innerHTML = `<div class="err">⚠️ ${esc(S.resError)}<br><button onclick="loadResults(true)">Réessayer</button></div>`; return; }
   if (!S.results){ loadResults(); return; }
   const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>` + ffbbBtn(FFBB_COMITE, "🌐 Tous les résultats de l'Essonne sur FFBB ↗");
-  if (!list.length){ main.innerHTML = `<div class="empty">Aucun résultat trouvé.${S.oldErr ? "<br>⚠️ " + esc(S.oldErr) : ""}</div>` + more; return; }
+  if (!list.length){ main.innerHTML = ffbbEssonneBanner() + `<div class="empty">Aucun résultat trouvé.${S.oldErr ? "<br>⚠️ " + esc(S.oldErr) : ""}</div>` + more; return; }
   list.sort((a,b) => (b.date - a.date) || catSortKey(a.cat) - catSortKey(b.cat));
-  let html = "", lastW = "", lastDay = "";
+  let html = ffbbEssonneBanner(), lastW = "", lastDay = "";
   for (const m of list){
     const fri = weekendOf(m.date), wk = fmtShort(fri);
     if (wk !== lastW){ const sun = new Date(fri); sun.setDate(fri.getDate()+2); html += `<div class="group">Week-end du ${esc(fmtShort(fri))} au ${esc(fmtShort(sun))}</div>`; lastW = wk; lastDay = ""; }
@@ -1312,7 +1314,7 @@ function renderHome(list){
   const now = Date.now();
   const live = list.filter(m => isLiveMatch(m, now)).sort((a,b) => a.date - b.date);
   const nbaLive = S.nbaHome.filter(g => g.state === "in");
-  let html = homeToggle(list.length);
+  let html = homeToggle(list.length) + ffbbEssonneBanner();
   if (live.length){
     const withScore = live.filter(m => liveOf(m)).length;
     html += `<div class="day">● En cours en Essonne (${live.length})</div>` + live.map(matchCard).join("");
@@ -1356,6 +1358,9 @@ function ffbbClubUrl(code){
 }
 function ffbbBtn(url, label, cls){ return `<button class="btn ${cls || "sec"}" data-url="${esc(url)}">${label}</button>`; }
 
+function ffbbEssonneBanner(){
+  return `<button class="ffbblink" data-url="${esc(FFBB_COMITE)}">🌐<span>Résultats de l'Essonne sur FFBB<small>Site officiel competitions.ffbb.com · comité 91</small></span><i>↗</i></button>`;
+}
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
