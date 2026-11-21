@@ -128,12 +128,19 @@ window.__nativeCb = function(id, status, text){
   p({status, text});
 };
 function http(method, url, headers, body){
-  if (window.AndroidBridge && window.AndroidBridge.request){
+  if (window.AndroidBridge && window.AndroidBridge.request && !window.__useWebFetch){
     return new Promise(res => {
       const id = "r" + (++reqSeq); pending[id] = res;
       window.AndroidBridge.request(id, method, url, JSON.stringify(headers||{}), body||"");
+    }).then(r => {
+      // échec natif (certificat…) : on retente via le moteur du navigateur
+      if (r.status === 0) return webFetch(method, url, headers, body).then(w => { if (w.status) window.__useWebFetch = true; return w.status ? w : r; });
+      return r;
     });
   }
+  return webFetch(method, url, headers, body);
+}
+function webFetch(method, url, headers, body){
   return fetch(url, {method, headers, body: body||undefined})
     .then(r => r.text().then(t => ({status:r.status, text:t})))
     .catch(e => ({status:0, text:"Erreur réseau : "+e.message}));

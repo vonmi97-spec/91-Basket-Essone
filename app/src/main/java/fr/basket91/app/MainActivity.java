@@ -85,6 +85,9 @@ public class MainActivity extends Activity {
                 HttpURLConnection c = null;
                 try {
                     c = (HttpURLConnection) new URL(url).openConnection();
+                    if (c instanceof javax.net.ssl.HttpsURLConnection) {
+                        ((javax.net.ssl.HttpsURLConnection) c).setSSLSocketFactory(AiaTrustManager.socketFactory());
+                    }
                     c.setRequestMethod(method);
                     c.setConnectTimeout(15000);
                     c.setReadTimeout(30000);
