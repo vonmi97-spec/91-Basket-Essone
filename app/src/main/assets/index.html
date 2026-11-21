@@ -58,6 +58,10 @@ main{padding:6px 12px 90px}
 .gym .go{margin-left:auto;background:var(--card2);border:1px solid var(--line);color:var(--orange2);border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700}
 .star{background:none;border:none;font-size:18px;color:var(--mute);padding:0 2px}
 .star.on{color:#FFC83D}
+.star.mini{font-size:20px;line-height:1;padding:2px 10px;margin-top:-2px}
+.favrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:6px 0}
+.favrow .nm{flex:1;font-weight:700;font-size:14px}.favrow .ty{font-size:11px;color:var(--mute)}
+.favrow .x{background:none;border:none;color:var(--mute);font-size:18px;padding:4px 8px}
 .empty,.err,.load{text-align:center;color:var(--mute);padding:40px 16px;line-height:1.5}
 .err{color:#FFB4BE}
 .err button,.empty button{margin-top:12px;background:var(--orange);border:none;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700}
@@ -419,8 +423,10 @@ function filtered(){
     return words.every(w => hay.includes(w));
   });
 }
-function favKey(t){ return t.clubId ? "c:" + t.clubId : "n:" + norm(t.nom); }
-function isFavMatch(m){ return S.favs.some(f => f.key === favKey(m.t1) || f.key === favKey(m.t2)); }
+function favKey(t){ return "n:" + norm(t.nom); }                 // équipe précise (ex. « ES BRUNOY - 1 »)
+function clubKey(t){ return t.clubId ? "c:" + t.clubId : ""; }      // toutes les équipes d'un club
+function isFavTeam(t){ return S.favs.some(f => f.key === favKey(t) || (clubKey(t) && f.key === clubKey(t))); }
+function isFavMatch(m){ return isFavTeam(m.t1) || isFavTeam(m.t2); }
 
 function renderWeek(){
   const r = weekendRange(S.offset);
@@ -460,9 +466,9 @@ function matchCard(m){
   return `<div class="match" data-id="${esc(m.id)}">
     <div class="top"><span class="cat">${esc(prettyCat(m.cat))}${sexe}</span><span class="comp">${esc(m.comp)}${m.poule ? " · " + esc(m.poule) : ""}</span></div>
     <div class="teams">
-      <div class="team ${m.joue && s1>s2 ? "win":""}">${logoHtml(m.t1)}<div class="nm">${esc(m.t1.nom)}</div></div>
+      <div class="team ${m.joue && s1>s2 ? "win":""}">${logoHtml(m.t1)}<div class="nm">${esc(m.t1.nom)}</div>${miniStar(m.t1)}</div>
       <div class="mid">${mid}</div>
-      <div class="team ${m.joue && s2>s1 ? "win":""}">${logoHtml(m.t2)}<div class="nm">${esc(m.t2.nom)}</div></div>
+      <div class="team ${m.joue && s2>s1 ? "win":""}">${logoHtml(m.t2)}<div class="nm">${esc(m.t2.nom)}</div>${miniStar(m.t2)}</div>
     </div>
     <div class="gym">📍 <span><b>${esc(m.salle.nom || "Gymnase non précisé")}</b>${m.salle.ville ? " · " + esc(m.salle.ville) : ""}</span>
       ${m.salle.nom || m.salle.geo ? `<button class="go" data-go="${esc(m.id)}">Itinéraire</button>` : ""}</div>
@@ -481,8 +487,9 @@ function renderMain(){
   if (S.tab === "up") return renderPromotions(list);
   if (S.tab === "clubs") return renderClubs(list);
   if (S.tab === "gyms") return renderGyms(list);
+  const favHead = S.tab === "favs" ? favManager() : "";
   if (!list.length){
-    main.innerHTML = `<div class="empty">${S.tab==="favs" ? (S.favs.length ? "Aucun match de tes équipes favorites ce week-end." : "Pas encore de favoris.<br>Ouvre un match puis touche ☆ sur une équipe.") : S.matches.length ? "Aucun match ne correspond à ta recherche." : "Aucun match départemental trouvé pour ce week-end<br>(vacances scolaires ou trêve ?)."}</div>`;
+    main.innerHTML = favHead + `<div class="empty">${S.tab==="favs" ? (S.favs.length ? "Aucun match de tes équipes favorites ce week-end." : "Pas encore de favoris.<br>Touche ＋ Ajouter, ou ☆ sous une équipe dans un match.") : S.matches.length ? "Aucun match ne correspond à ta recherche." : "Aucun match départemental trouvé pour ce week-end<br>(vacances scolaires ou trêve ?)."}</div>`;
     return;
   }
   list.sort((a,b) => (a.date - b.date) || catSortKey(a.cat) - catSortKey(b.cat));
@@ -493,7 +500,7 @@ function renderMain(){
     html += matchCard(m);
   }
   html += `<div class="stat">${list.length} match${list.length>1?"s":""} · Données FFBB</div>`;
-  main.innerHTML = html;
+  main.innerHTML = favHead + html;
 }
 function renderResults(list){
   const main = $("main");
@@ -601,7 +608,7 @@ function rankTable(pk, p){
   return html + `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>P</th><th>GA</th></tr>` +
     r.rows.map(x => {
       const t = matchTeam(p, x);
-      const me = t && favKeys.has(favKey(t));
+      const me = t ? isFavTeam(t) : favKeys.has("n:" + norm(x.nom));
       return `<tr class="${me?"me":""}"><td>${esc(x.position || "")}</td><td class="tm">${logoHtml({logo: x.logo || (t && t.logo), club: x.club, nom: x.nom})}${esc(x.nom)}</td>
         <td class="pts">${esc(x.points)}</td><td>${esc(x.joues)}</td><td>${esc(x.gagnes)}</td><td>${esc(x.perdus)}</td><td>${x.diff>0?"+":""}${esc(x.diff)}</td></tr>`;
     }).join("") + `</table><div class="mini">Classement officiel FFBB</div>`;
@@ -1103,14 +1110,16 @@ function nbaCard(g){
   return `<div class="match">
     <div class="top"><span class="cat" style="background:#1D428A;color:#fff">NBA</span><span class="comp">${esc(g.away.abbr)} @ ${esc(g.home.abbr)}${g.tv ? " · " + esc(g.tv) : ""}</span></div>
     <div class="teams">
-      <div class="team ${done && a>h ? "win":""}">${nbaLogo(g.away)}<div class="nm">${esc(g.away.nom)}</div><div class="st" style="font-size:11px;color:var(--mute)">${esc(g.away.record)}</div></div>
+      <div class="team ${done && a>h ? "win":""}">${nbaLogo(g.away)}<div class="nm">${esc(g.away.nom)}</div>${nbaStar(g.away)}<div class="st" style="font-size:11px;color:var(--mute)">${esc(g.away.record)}</div></div>
       <div class="mid">${mid}</div>
-      <div class="team ${done && h>a ? "win":""}">${nbaLogo(g.home)}<div class="nm">${esc(g.home.nom)}</div><div class="st" style="font-size:11px;color:var(--mute)">${esc(g.home.record)}</div></div>
+      <div class="team ${done && h>a ? "win":""}">${nbaLogo(g.home)}<div class="nm">${esc(g.home.nom)}</div>${nbaStar(g.home)}<div class="st" style="font-size:11px;color:var(--mute)">${esc(g.home.record)}</div></div>
     </div>
     ${lines}
     ${g.venue ? `<div class="gym">🏟 <span>${esc(g.venue)}</span></div>` : ""}
   </div>`;
 }
+function nbaFav(t){ return S.favs.some(f => f.key === "nba:" + t.abbr); }
+function nbaStar(t){ const on = nbaFav(t); return `<button class="star mini ${on?"on":""}" data-fav="nba:${esc(t.abbr)}" data-favname="${esc(t.nom)}">${on?"★":"☆"}</button>`; }
 function renderNba(){
   const main = $("main");
   if (!S.nbaDay) S.nbaDay = nbaDefaultDay();
@@ -1124,10 +1133,46 @@ function renderNba(){
   const words = norm(S.q).split(/\s+/).filter(Boolean);
   const list = (S.nba || []).filter(g => !words.length || words.every(w => norm([g.away.nom, g.home.nom, g.away.abbr, g.home.abbr].join(" ")).includes(w)));
   if (!list.length){ main.innerHTML = html + `<div class="empty">Aucun match NBA ce jour-là.</div>`; return; }
+  const mine = list.filter(g => nbaFav(g.away) || nbaFav(g.home));
+  if (mine.length) html += `<div class="day">★ Mes équipes (${mine.length})</div>` + mine.map(nbaCard).join("");
   const groups = [["● En cours", list.filter(g => g.state === "in")], ["Résultats", list.filter(g => g.state === "post")], ["À venir", list.filter(g => g.state === "pre")]];
   groups.forEach(([t, l]) => { if (l.length) html += `<div class="day">${t} (${l.length})</div>` + l.map(nbaCard).join(""); });
   html += `<div class="stat">Source : ESPN${S.nbaAt ? " · mis à jour à " + new Date(S.nbaAt).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : ""}${list.some(g => g.state === "in") ? " · actualisation auto 30 s" : ""}</div>`;
   main.innerHTML = html;
+}
+
+/* ================= Gestion des favoris ================= */
+const NBA_TEAMS = [["ATL","Atlanta Hawks"],["BOS","Boston Celtics"],["BKN","Brooklyn Nets"],["CHA","Charlotte Hornets"],["CHI","Chicago Bulls"],["CLE","Cleveland Cavaliers"],["DAL","Dallas Mavericks"],["DEN","Denver Nuggets"],["DET","Detroit Pistons"],["GS","Golden State Warriors"],["HOU","Houston Rockets"],["IND","Indiana Pacers"],["LAC","LA Clippers"],["LAL","Los Angeles Lakers"],["MEM","Memphis Grizzlies"],["MIA","Miami Heat"],["MIL","Milwaukee Bucks"],["MIN","Minnesota Timberwolves"],["NO","New Orleans Pelicans"],["NY","New York Knicks"],["OKC","Oklahoma City Thunder"],["ORL","Orlando Magic"],["PHI","Philadelphia 76ers"],["PHX","Phoenix Suns"],["POR","Portland Trail Blazers"],["SAC","Sacramento Kings"],["SA","San Antonio Spurs"],["TOR","Toronto Raptors"],["UTAH","Utah Jazz"],["WSH","Washington Wizards"]];
+function favType(k){ return k.startsWith("nba:") ? "NBA" : k.startsWith("c:") ? "Club (toutes ses équipes)" : "Équipe"; }
+function favManager(){
+  const rows = S.favs.map(f => `<div class="favrow"><span class="star on" style="padding:0">★</span><div class="nm">${esc(f.nom)}<div class="ty">${esc(favType(f.key))}</div></div><button class="x" data-favdel="${esc(f.key)}" aria-label="Retirer">✕</button></div>`).join("");
+  return `<div class="group">Mes favoris (${S.favs.length})</div>${rows}<button class="btn" data-favadd="1" style="margin:8px 0 4px">＋ Ajouter une équipe ou un club</button><div class="group">Leurs matchs ce week-end</div>`;
+}
+function allTeams(){
+  const t = {};
+  allKnown().forEach(m => [m.t1, m.t2].forEach(x => {
+    const k = favKey(x); if (!t[k]) t[k] = {key: k, nom: x.nom, sub: [prettyCat(m.cat), m.sexe === "F" ? "F" : m.sexe === "M" ? "M" : ""].filter(Boolean).join(" "), team: x};
+    if (x.clubId){ const ck = "c:" + x.clubId; if (!t[ck]) t[ck] = {key: ck, nom: (x.club || x.nom) + " (club)", sub: "toutes ses équipes", team: x, club: true}; }
+  }));
+  NBA_TEAMS.forEach(([a, n]) => { t["nba:" + a] = {key: "nba:" + a, nom: n, sub: "NBA", nba: true}; });
+  return Object.values(t);
+}
+function showFavPicker(qs){
+  openSheet(`<h2>Ajouter des favoris</h2>
+    <div class="search" style="margin:0 0 8px"><input id="favQ" type="search" placeholder="Nom d'équipe, de club ou de franchise NBA…" value="${esc(qs)}" autocomplete="off"></div>
+    <div id="favList"></div><button class="btn sec" onclick="closeSheet();renderMain()">Terminé</button>`);
+  const draw = () => {
+    const words = norm($("favQ").value).split(/\s+/).filter(Boolean);
+    const all = allTeams().filter(x => !words.length || words.every(w => norm(x.nom + " " + x.sub).includes(w)))
+      .sort((a,b) => (S.favs.some(f => f.key === b.key) - S.favs.some(f => f.key === a.key)) || (a.nba - b.nba) || (b.club ? 1 : 0) - (a.club ? 1 : 0) || a.nom.localeCompare(b.nom)).slice(0, 80);
+    $("favList").innerHTML = all.length ? all.map(x => { const on = S.favs.some(f => f.key === x.key);
+      return `<div class="favrow">${x.team ? logoHtml(x.team).replace('class="logo', 'style="width:30px;height:30px" class="logo') : ""}<div class="nm">${esc(x.nom)}<div class="ty">${esc(x.sub)}</div></div>
+        <button class="star ${on?"on":""}" data-fav="${esc(x.key)}" data-favname="${esc(x.nom)}">${on?"★":"☆"}</button></div>`; }).join("")
+      : `<div class="mini">Aucune équipe trouvée.${S.matches.length ? "" : " Charge d'abord les matchs du week-end."}</div>`;
+  };
+  $("favQ").addEventListener("input", draw); draw();
+  // on charge aussi les week-ends précédents pour proposer toutes les équipes
+  if (!S.results && !S.resLoading) loadResults().then(() => { if ($("favList")) draw(); });
 }
 
 function findMatch(id){
@@ -1156,7 +1201,8 @@ function renderClubs(list){
   if (!arr.length){ $("main").innerHTML = `<div class="empty">Aucun club pour cette sélection.</div>`; return; }
   $("main").innerHTML = arr.map(x => `<div class="club" data-club="${esc(x.id)}">${logoHtml(x.t)}
      <div class="info"><b>${esc(x.t.club || x.t.nom)}</b><span>${x.t.code ? esc(x.t.code) : ""}</span></div>
-     <span class="count">${x.n} match${x.n>1?"s":""}</span></div>`).join("");
+     <span class="count">${x.n} match${x.n>1?"s":""}</span>
+     ${x.id ? (() => { const k = "c:" + x.id, on = S.favs.some(f => f.key === k); return `<button class="star ${on?"on":""}" data-fav="${esc(k)}" data-favname="${esc((x.t.club || x.t.nom) + " (club)")}">${on?"★":"☆"}</button>`; })() : ""}</div>`).join("");
 }
 
 /* ================= Fiche match ================= */
@@ -1170,6 +1216,10 @@ function mapsUrl(m){
   return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([s.nom, s.adresse, s.cp, s.ville].filter(Boolean).join(" "));
 }
 function openUrl(u){ if (window.AndroidBridge && AndroidBridge.openUrl) AndroidBridge.openUrl(u); else window.open(u, "_blank"); }
+function miniStar(t){
+  const on = isFavTeam(t);
+  return `<button class="star mini ${on?"on":""}" data-fav="${esc(favKey(t))}" data-favname="${esc(t.nom)}" aria-label="Favori">${on?"★":"☆"}</button>`;
+}
 function favBtn(t){
   const on = S.favs.some(f => f.key === favKey(t));
   return `<button class="star ${on?"on":""}" data-fav="${esc(favKey(t))}" data-favname="${esc(t.nom)}">${on?"★":"☆"}</button>`;
@@ -1211,6 +1261,12 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const fa = e.target.closest("[data-favadd],[data-favdel]");
+  if (fa){
+    if (fa.dataset.favdel){ S.favs = S.favs.filter(f => f.key !== fa.dataset.favdel); store.set("favs", S.favs); syncNotif(); renderMain(); }
+    else showFavPicker("");
+    return;
+  }
   const nd = e.target.closest("[data-nbaday]");
   if (nd){ const k = +nd.dataset.nbaday; if (k){ const d = new Date(S.nbaDay || nbaDefaultDay()); d.setDate(d.getDate() + k); S.nbaDay = d; } loadNba(); return; }
   const nb = e.target.closest("[data-notif]");
@@ -1247,8 +1303,10 @@ document.addEventListener("click", e => {
     e.stopPropagation(); const k = el.dataset.fav;
     const i = S.favs.findIndex(f => f.key === k);
     if (i >= 0) S.favs.splice(i,1); else S.favs.push({key:k, nom: el.dataset.favname});
-    store.set("favs", S.favs); const on = i < 0; el.classList.toggle("on", on); el.textContent = on ? "★" : "☆";
-    syncNotif(); if (on) setTimeout(() => proposeNotif(el.dataset.favname), 400);
+    store.set("favs", S.favs); const on = i < 0;
+    document.querySelectorAll(`[data-fav="${CSS.escape(k)}"]`).forEach(b => { b.classList.toggle("on", on); b.textContent = on ? "★" : "☆"; });
+    if (k.startsWith("nba:") && S.tab === "nba") renderNba();
+    syncNotif(); if (on && !k.startsWith("nba:")) setTimeout(() => proposeNotif(el.dataset.favname), 400);
     if (S.tab === "favs") renderMain(); return;
   }
   if (el.dataset.club !== undefined){ if (el.dataset.club){ S.club = el.dataset.club; S.tab = "matchs"; document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab==="matchs")); render(); window.scrollTo(0,0); } return; }
