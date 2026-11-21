@@ -1,12 +1,16 @@
 name: Instantane FFBB
 on: workflow_dispatch
+permissions:
+  contents: write
 jobs:
   snap:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - run: python3 tools/snapshot.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: snapshot
-          path: snapshot.json
+      - name: Publier sur la branche data
+        run: |
+          mkdir /tmp/d && mv snapshot.json /tmp/d/ && cd /tmp/d
+          git init -q -b data && git add snapshot.json
+          git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "instantané $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
