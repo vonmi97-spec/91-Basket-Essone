@@ -32,7 +32,8 @@ header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0F1B2
 .chip{flex:0 0 auto;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--mute);font-size:13px;font-weight:600}
 .chip.on{background:var(--orange);border-color:var(--orange);color:#fff}
 .tabs{display:flex;gap:4px;margin-top:6px}
-.tab{flex:1;padding:8px;text-align:center;border-radius:10px;color:var(--mute);font-weight:700;font-size:13px;background:transparent;border:none}
+.tabs{overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 0 auto;padding:8px 10px;text-align:center;border-radius:10px;color:var(--mute);font-weight:700;font-size:13px;background:transparent;border:none}
 .tab.on{background:var(--card2);color:var(--txt)}
 main{padding:6px 12px 90px}
 .day{margin:16px 2px 6px;font-weight:800;color:var(--orange2);text-transform:capitalize;font-size:14px}
@@ -75,6 +76,20 @@ main{padding:6px 12px 90px}
 .btn{display:block;width:100%;margin-top:12px;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:12px;font-weight:800;font-size:15px}
 .btn.sec{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
 .stat{font-size:12px;color:var(--mute);margin:8px 2px 0}
+.div{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin:8px 0;overflow:hidden}
+.div > .hd{padding:11px 12px;font-weight:800;font-size:14px;display:flex;justify-content:space-between;gap:8px}
+.div > .hd span{color:var(--mute);font-weight:600;font-size:12px;white-space:nowrap}
+.pl{border-top:1px solid var(--line)}
+.pl .ph2{padding:10px 12px;display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;color:#C9D6EA}
+.pl .ph2 i{font-style:normal;color:var(--orange2)}
+table.rk{width:100%;border-collapse:collapse;font-size:12.5px}
+table.rk th{color:var(--mute);font-weight:700;text-align:center;padding:6px 3px;background:var(--card2)}
+table.rk td{text-align:center;padding:7px 3px;border-top:1px solid var(--line)}
+table.rk td.tm{text-align:left;display:flex;align-items:center;gap:7px;font-weight:600}
+table.rk td.tm .logo{width:24px;height:24px;font-size:9px;padding:1px}
+table.rk td.pts{font-weight:900;color:var(--orange2)}
+table.rk tr.me td{background:rgba(242,107,29,.12)}
+.mini{font-size:11px;color:var(--mute);padding:6px 12px 10px}
 .settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
 .settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
 </style>
@@ -97,6 +112,8 @@ main{padding:6px 12px 90px}
   <div class="chips" id="sexes"></div>
   <div class="tabs">
     <button class="tab on" data-tab="matchs">Matchs</button>
+    <button class="tab" data-tab="res">Résultats</button>
+    <button class="tab" data-tab="cls">Classements</button>
     <button class="tab" data-tab="gyms">Gymnases</button>
     <button class="tab" data-tab="clubs">Clubs</button>
     <button class="tab" data-tab="favs">★ Favoris</button>
@@ -306,7 +323,7 @@ function normalize(h){
     id: String(h.id || h.uniqueKey || Math.random()),
     date: parseDate(h), cat, sexe: sexeOf(h),
     comp: comp.nomExtended || comp.nom || h.nomExtended || "Compétition",
-    compCode: comp.code || "", poule: (h.idPoule && h.idPoule.nom) || "", journee: h.numeroJournee,
+    compCode: comp.code || "", compId: comp.id ? String(comp.id) : "", pouleId: (h.idPoule && h.idPoule.id) ? String(h.idPoule.id) : "", poule: (h.idPoule && h.idPoule.nom) || "", journee: h.numeroJournee,
     t1, t2, joue,
     salle: { nom: s.libelle || s.libelle2 || "", adresse: [s.adresse, s.adresseComplement].filter(Boolean).join(" "),
              cp: com.codePostal || carto.codePostal || "", ville: com.libelle || carto.ville || "", geo },
@@ -336,7 +353,9 @@ window.logoErr = function(img){
 
 /* ================= État & rendu ================= */
 const S = { offset: 0, matches: [], cat: "ALL", sexe: "ALL", q: "", tab: "matchs", loading: false, error: null, club: null,
-            favs: store.get("favs", []) };
+            favs: store.get("favs", []), results: null, resWeeks: 4, resLoading: false, resError: null, open: {}, ranks: {} };
+const src = () => S.tab === "res" ? (S.results || []) : S.tab === "cls" ? allKnown() : S.matches;
+function allKnown(){ const seen = {}, out = []; [S.matches, S.results || []].forEach(l => l.forEach(m => { if (!seen[m.id]){ seen[m.id] = 1; out.push(m); } })); return out; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
@@ -347,7 +366,8 @@ function catSortKey(c){
 }
 function filtered(){
   const words = norm(S.q).split(/\s+/).filter(Boolean);
-  return S.matches.filter(m => {
+  return src().filter(m => {
+    if (S.tab === "res" && !m.joue) return false;
     if (S.cat !== "ALL" && m.cat.code !== S.cat) return false;
     if (S.sexe !== "ALL" && m.sexe !== S.sexe) return false;
     if (S.club && m.t1.clubId !== S.club && m.t2.clubId !== S.club) return false;
@@ -369,11 +389,11 @@ function renderWeek(){
   $("wDates").textContent = `ven. ${fmtShort(r.start)} → dim. ${fmtShort(r.end)}`;
 }
 function renderChips(){
-  const cats = {}; S.matches.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
+  const cats = {}; const base = S.tab === "res" ? (S.results||[]).filter(m => m.joue) : S.tab === "cls" ? allKnown() : S.matches; base.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
   const list = Object.values(cats).sort((a,b) => catSortKey(a.c) - catSortKey(b.c) || a.c.code.localeCompare(b.c.code));
-  $("cats").innerHTML = `<button class="chip ${S.cat==="ALL"?"on":""}" data-cat="ALL">Toutes (${S.matches.length})</button>` +
+  $("cats").innerHTML = `<button class="chip ${S.cat==="ALL"?"on":""}" data-cat="ALL">Toutes (${base.length})</button>` +
     list.map(x => `<button class="chip ${S.cat===x.c.code?"on":""}" data-cat="${esc(x.c.code)}">${esc(prettyCat(x.c))} · ${x.n}</button>`).join("");
-  const sx = [["ALL","Tous"],["F","Féminin"],["M","Masculin"],["X","Mixte"]].filter(([k]) => k==="ALL" || S.matches.some(m => m.sexe===k));
+  const sx = [["ALL","Tous"],["F","Féminin"],["M","Masculin"],["X","Mixte"]].filter(([k]) => k==="ALL" || base.some(m => m.sexe===k));
   $("sexes").innerHTML = sx.map(([k,l]) => `<button class="chip ${S.sexe===k?"on":""}" data-sexe="${k}">${l}</button>`).join("") +
     (S.club ? `<button class="chip on" data-clearclub="1">✕ ${esc(clubName(S.club))}</button>` : "");
 }
@@ -408,6 +428,8 @@ function renderMain(){
   if (S.loading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Chargement des matchs du week-end…</div>`; return; }
   if (S.error){ main.innerHTML = `<div class="err">⚠️ ${esc(S.error)}<br><button onclick="reload(true)">Réessayer</button></div>`; return; }
   const list = filtered();
+  if (S.tab === "res") return renderResults(list);
+  if (S.tab === "cls") return renderStandings(list);
   if (S.tab === "clubs") return renderClubs(list);
   if (S.tab === "gyms") return renderGyms(list);
   if (!list.length){
@@ -424,6 +446,153 @@ function renderMain(){
   html += `<div class="stat">${list.length} match${list.length>1?"s":""} · Données FFBB</div>`;
   main.innerHTML = html;
 }
+function renderResults(list){
+  const main = $("main");
+  if (S.resLoading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Récupération des résultats FFBB des ${S.resWeeks} derniers week-ends…</div>`; return; }
+  if (S.resError){ main.innerHTML = `<div class="err">⚠️ ${esc(S.resError)}<br><button onclick="loadResults(true)">Réessayer</button></div>`; return; }
+  if (!S.results){ loadResults(); return; }
+  const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>`;
+  if (!list.length){ main.innerHTML = `<div class="empty">Aucun résultat trouvé.</div>` + more; return; }
+  list.sort((a,b) => (b.date - a.date) || catSortKey(a.cat) - catSortKey(b.cat));
+  let html = "", lastW = "", lastDay = "";
+  for (const m of list){
+    const fri = weekendOf(m.date), wk = fmtShort(fri);
+    if (wk !== lastW){ const sun = new Date(fri); sun.setDate(fri.getDate()+2); html += `<div class="group">Week-end du ${esc(fmtShort(fri))} au ${esc(fmtShort(sun))}</div>`; lastW = wk; lastDay = ""; }
+    const day = fmtDay(m.date); if (day !== lastDay){ html += `<div class="day">${esc(day)}</div>`; lastDay = day; }
+    html += matchCard(m);
+  }
+  html += `<div class="stat">${list.length} résultat${list.length>1?"s":""} · Données FFBB</div>` + more;
+  main.innerHTML = html;
+}
+function weekendOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); const wd = x.getDay();
+  const back = wd === 5 ? 0 : wd === 6 ? 1 : wd === 0 ? 2 : wd + 2; x.setDate(x.getDate() - back); return x;
+}
+async function loadResults(force){
+  if (S.resLoading) return;
+  if (force) S.results = null;
+  S.resLoading = true; S.resError = null; if (S.tab === "res") renderMain();
+  try{
+    const now = new Date(); let all = [];
+    for (let w = 0; w >= -S.resWeeks; w--){
+      const r = weekendRange(w); if (r.start > now) continue;
+      const key = "res" + w;
+      if (!cache[key] || w === 0) cache[key] = (await loadMatches({start: r.start, end: r.end < now ? r.end : now})).filter(m => m.joue);
+      all = all.concat(cache[key]);
+      S.results = all; if (S.tab === "res" || S.tab === "cls"){ S.resLoading = false; renderChips(); renderMain(); S.resLoading = true; }
+    }
+    S.results = all;
+  }catch(err){ S.resError = (err && err.message) || String(err); }
+  finally{ S.resLoading = false; if (S.tab === "res" || S.tab === "cls"){ renderChips(); renderMain(); } }
+}
+function moreResults(){ S.resWeeks += 4; loadResults(true); }
+window.loadResults = loadResults; window.moreResults = moreResults;
+
+/* ================= Classements ================= */
+function divisionKey(m){ return m.compId || m.comp; }
+function renderStandings(list){
+  const main = $("main");
+  // Catégorie → Division (compétition) → Poule
+  const cats = {};
+  list.forEach(m => {
+    if (!m.pouleId && !m.poule) return;
+    const ck = m.cat.code;
+    const c = cats[ck] = cats[ck] || {cat: m.cat, divs: {}};
+    const dk = divisionKey(m);
+    const d = c.divs[dk] = c.divs[dk] || {nom: m.comp, sexe: m.sexe, poules: {}};
+    const pk = m.pouleId || (dk + "|" + m.poule);
+    const p = d.poules[pk] = d.poules[pk] || {id: m.pouleId, nom: m.poule || "Poule unique", teams: {}};
+    [m.t1, m.t2].forEach(t => { p.teams[t.nom] = t; });
+  });
+  const catArr = Object.values(cats).sort((a,b) => catSortKey(a.cat) - catSortKey(b.cat) || a.cat.code.localeCompare(b.cat.code));
+  if (!catArr.length){
+    main.innerHTML = S.resLoading ? `<div class="load"><div class="spinner"></div>Recherche des divisions et poules…</div>` : `<div class="empty">Aucune poule trouvée.</div>`;
+    return;
+  }
+  let html = S.resLoading ? `<div class="stat">⏳ Recherche d'autres poules en cours…</div>` : "";
+  for (const c of catArr){
+    const sx = S.sexe;
+    html += `<div class="day">${esc(prettyCat(c.cat))}</div>`;
+    const divs = Object.values(c.divs).sort((a,b) => divRank(a.nom) - divRank(b.nom) || a.nom.localeCompare(b.nom));
+    for (const d of divs){
+      const poules = Object.entries(d.poules).sort((a,b) => a[1].nom.localeCompare(b[1].nom, "fr", {numeric:true}));
+      html += `<div class="div"><div class="hd">${esc(d.nom)}<span>${poules.length} poule${poules.length>1?"s":""}</span></div>`;
+      for (const [pk, p] of poules){
+        const open = !!S.open[pk];
+        html += `<div class="pl"><div class="ph2" data-poule="${esc(pk)}" data-pid="${esc(p.id||"")}">${esc(p.nom)} <i>${open ? "▲" : "▼ Classement"}</i></div>`;
+        if (open) html += rankTable(pk, p);
+        html += `</div>`;
+      }
+      html += `</div>`;
+    }
+  }
+  main.innerHTML = html;
+}
+function divRank(nom){
+  const n = norm(nom);
+  if (/elite|excellence/.test(n)) return 0;
+  const m = /(?:division|d[mf]?|niveau|div\.?)\s*(\d)/.exec(n); if (m) return +m[1];
+  if (/honneur/.test(n)) return 3; if (/promotion/.test(n)) return 4;
+  return 9;
+}
+function rankTable(pk, p){
+  const r = S.ranks[pk];
+  if (!r || r.loading) return `<div class="mini"><div class="spinner" style="width:22px;height:22px;border-width:3px;margin:6px auto"></div></div>`;
+  if (r.error) return `<div class="mini">⚠️ ${esc(r.error)} <button class="chip" data-poule-retry="${esc(pk)}">Réessayer</button></div>`;
+  if (!r.rows.length) return `<div class="mini">Classement pas encore disponible sur la FFBB.</div>`;
+  const favKeys = new Set(S.favs.map(f => f.key));
+  return `<table class="rk"><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>P</th><th>Diff</th></tr>` +
+    r.rows.map(x => {
+      const t = matchTeam(p, x);
+      const me = t && favKeys.has(favKey(t));
+      return `<tr class="${me?"me":""}"><td>${esc(x.position || "")}</td><td class="tm">${logoHtml({logo: x.logo || (t && t.logo), club: x.club, nom: x.nom})}${esc(x.nom)}</td>
+        <td class="pts">${esc(x.points)}</td><td>${esc(x.joues)}</td><td>${esc(x.gagnes)}</td><td>${esc(x.perdus)}</td><td>${x.diff>0?"+":""}${esc(x.diff)}</td></tr>`;
+    }).join("") + `</table><div class="mini">Source : FFBB</div>`;
+}
+function matchTeam(p, x){
+  const teams = Object.values(p.teams);
+  return teams.find(t => norm(t.nom) === norm(x.nom)) || teams.find(t => x.clubId && t.clubId === x.clubId) || null;
+}
+const RANK_FIELDS_FULL = ["id","nom","classements.position","classements.points","classements.matchJoues","classements.gagnes","classements.perdus",
+  "classements.nuls","classements.paniersMarques","classements.paniersEncaisses","classements.difference","classements.horsClassement",
+  "classements.organisme_nom","classements.organisme.id","classements.organisme.nom","classements.organisme.logo.id","classements.idEngagement.nom","classements.idEngagement.id"];
+const RANK_FIELDS_MIN = ["id","nom","classements.position","classements.points","classements.matchJoues","classements.gagnes","classements.perdus",
+  "classements.difference","classements.paniersMarques","classements.paniersEncaisses","classements.organisme_nom","classements.organisme","classements.idEngagement"];
+async function directusGet(path, fields, extra){
+  const tk = await getTokens();
+  const qs = fields.map(f => "fields[]=" + encodeURIComponent(f)).concat(extra || []).join("&");
+  return httpJson("GET", API + path + "?" + qs, {"Authorization": "Bearer " + tk.dh});
+}
+async function loadRanking(pk, pid, p){
+  S.ranks[pk] = {loading: true}; renderMain();
+  try{
+    if (!pid) throw new Error("Identifiant de poule inconnu");
+    let j;
+    try{ j = await directusGet("items/ffbbserver_poules/" + encodeURIComponent(pid), RANK_FIELDS_FULL, ["deep[classements][_limit]=100"]); }
+    catch(e){ if (e.status === 401){ await getTokens(true); } j = await directusGet("items/ffbbserver_poules/" + encodeURIComponent(pid), RANK_FIELDS_MIN, ["deep[classements][_limit]=100"]); }
+    const d = (j && j.data) || {};
+    const rows = (d.classements || []).filter(c => c && !c.horsClassement).map(c => {
+      const org = (c.organisme && typeof c.organisme === "object") ? c.organisme : {};
+      const eng = (c.idEngagement && typeof c.idEngagement === "object") ? c.idEngagement : {};
+      const nom = eng.nom || c.organisme_nom || org.nom || "?";
+      const pm = +c.paniersMarques || 0, pe = +c.paniersEncaisses || 0;
+      return { position: +c.position || 0, nom, club: org.nom || c.organisme_nom || "", clubId: org.id ? String(org.id) : (typeof c.organisme !== "object" && c.organisme ? String(c.organisme) : ""),
+               logo: logoId(org.logo), points: +c.points || 0, joues: +c.matchJoues || 0, gagnes: +c.gagnes || 0, perdus: +c.perdus || 0,
+               diff: c.difference != null ? +c.difference : pm - pe };
+    }).sort((a,b) => (a.position || 99) - (b.position || 99) || b.points - a.points || b.diff - a.diff);
+    // nom d'équipe précis (avec numéro) à partir des matchs connus
+    rows.forEach(x => { if (!/\d/.test(x.nom)){ const t = matchTeam(p, x); if (t && t.clubId === x.clubId) x.nom = t.nom; } });
+    S.ranks[pk] = {rows};
+  }catch(err){ S.ranks[pk] = {error: (err && err.message) || String(err)}; }
+  if (S.tab === "cls") renderMain();
+}
+function pouleFromKey(pk){
+  for (const m of allKnown()){ const k = m.pouleId || (divisionKey(m) + "|" + m.poule); if (k === pk){
+    const teams = {}; allKnown().forEach(x => { const kx = x.pouleId || (divisionKey(x) + "|" + x.poule); if (kx === pk){ teams[x.t1.nom] = x.t1; teams[x.t2.nom] = x.t2; } });
+    return {id: m.pouleId, teams}; } }
+  return {id: "", teams: {}};
+}
+
 function renderGyms(list){
   const g = {};
   list.forEach(m => { const k = (m.salle.nom||"Gymnase non précisé") + "|" + m.salle.ville; (g[k] = g[k] || {s:m.salle, ms:[]}).ms.push(m); });
@@ -464,7 +633,7 @@ function favBtn(t){
   return `<button class="star ${on?"on":""}" data-fav="${esc(favKey(t))}" data-favname="${esc(t.nom)}">${on?"★":"☆"}</button>`;
 }
 function showMatch(id){
-  const m = S.matches.find(x => x.id === id); if (!m) return;
+  const m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id); if (!m) return;
   const dt = m.date ? m.date.toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}) : "—";
   openSheet(`<h2>${esc(m.comp)}</h2>
     <div class="teams">
@@ -496,6 +665,14 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const pl = e.target.closest("[data-poule],[data-poule-retry]");
+  if (pl){
+    const pk = pl.dataset.poule || pl.dataset.pouleRetry; const p = pouleFromKey(pk);
+    if (pl.dataset.pouleRetry){ loadRanking(pk, p.id, p); return; }
+    S.open[pk] = !S.open[pk];
+    if (S.open[pk] && (!S.ranks[pk] || S.ranks[pk].error)) loadRanking(pk, p.id, p); else renderMain();
+    return;
+  }
   const el = e.target.closest("[data-cat],[data-sexe],[data-tab],[data-go],[data-fav],[data-club],[data-clearclub],.match,#saveSet,#resetSet");
   if (e.target.id === "sheet"){ closeSheet(); return; }
   if (!el) return;
@@ -504,8 +681,8 @@ document.addEventListener("click", e => {
   if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
   if (el.dataset.clearclub){ S.club = null; render(); return; }
-  if (el.dataset.tab){ S.tab = el.dataset.tab; document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderMain(); return; }
-  if (el.dataset.go){ e.stopPropagation(); const m = S.matches.find(x => x.id === el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
+  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if (S.tab === "cls" && !S.results) loadResults(); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
+  if (el.dataset.go){ e.stopPropagation(); const m = S.matches.find(x => x.id === el.dataset.go) || (S.results||[]).find(x => x.id === el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
   if (el.dataset.fav){
     e.stopPropagation(); const k = el.dataset.fav;
     const i = S.favs.findIndex(f => f.key === k);
