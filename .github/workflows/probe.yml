@@ -1,8 +1,13 @@
 name: Test API FFBB
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      a: {required: false}
+      b: {required: false}
+      c: {required: false}
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: python3 tools/probe.py
+      - run: python3 tools/probe.py ${{ inputs.a }} ${{ inputs.b }} ${{ inputs.c }}

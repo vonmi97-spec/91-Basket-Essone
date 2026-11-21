@@ -1,10 +1,12 @@
-import urllib.request, re
+import urllib.request, re, sys
 UA={"User-Agent":"Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36","Accept":"text/html"}
-for u in ["https://www.ffbb.com/","https://competitions.ffbb.com/","https://www.ffbb.com/competitions","https://www.ffbb.com/ligues/idf/comites/0091/competitions","https://www.ffbb.com/competitions/dmu13-2"]:
+B="https://competitions.ffbb.com"
+def get(p):
     try:
-        r=urllib.request.urlopen(urllib.request.Request(u,headers=UA),timeout=20); h=r.read().decode("utf8","ignore")
-        print("URL",u,r.status,r.geturl(),len(h))
-        hrefs=sorted(set(re.findall(r'href="(/[^"#?]{3,120})"',h)))
-        print("  HREFS", [x for x in hrefs if re.search(r'compet|poule|rencontre|club|resultat|ligue|comite|match',x)][:40])
-        print("  NEXT", re.findall(r'"(/[a-z\-]+/\[[^"]+)"',h)[:20])
-    except Exception as e: print("URL",u,"ERR",e)
+        r=urllib.request.urlopen(urllib.request.Request(B+p,headers=UA),timeout=25); return r.status, r.read().decode("utf8","ignore")
+    except urllib.error.HTTPError as e: return e.code, ""
+    except Exception as e: return str(e), ""
+s,h=get("/competitions/nm1"); print("NM1",s, sorted(set(re.findall(r'href="(/[^"#?]{3,160})"',h)))[:25])
+for p in ["/ligues/idf/comites/0091","/ligues/idf/comites/0091/competitions","/ligues/idf/comites/0091/competitions/CODE","/competitions/CODE","/ligues/idf/comites/0091/clubs/CLUB","/ligues/idf/comites/0091/competitions/CODE/poules/POULE"]:
+    p=p.replace("CODE",sys.argv[1].lower()).replace("CLUB",sys.argv[2].lower()).replace("POULE",sys.argv[3])
+    s,h=get(p); print("P",p,s,len(h), sorted(set(x for x in re.findall(r'href="(/[^"#?]{3,160})"',h) if re.search(r'rencontre|poule|competitions/|equipes|match',x)))[:15])
