@@ -1,22 +1,9 @@
-import json, urllib.request, urllib.parse
+import json, urllib.request
 UA={"User-Agent":"okhttp/4.12.0","Accept":"application/json"}
-def get(u,h={}):
-    try:
-        r=urllib.request.urlopen(urllib.request.Request(u,headers={**UA,**h}),timeout=30); return r.status, r.read()[:700]
-    except urllib.error.HTTPError as e: return e.code, e.read()[:200]
-cfg=json.loads(get("https://api.ffbb.app/items/configuration")[1] if False else urllib.request.urlopen(urllib.request.Request("https://api.ffbb.app/items/configuration",headers=UA)).read())["data"]
-dh=cfg["key_dh"]; A={"Authorization":"Bearer "+dh}
-pid="200000003055155"; B="https://api.ffbb.app/items/ffbbserver_poules/"+pid
-tests={
- "no fields auth": (B,A),
- "no fields noauth": (B,{}),
- "fields id,nom": (B+"?fields[]=id&fields[]=nom",A),
- "fields classements.*": (B+"?fields[]=id&fields[]=classements.*",A),
- "fields encoded": (B+"?"+urllib.parse.urlencode([("fields[]","id"),("fields[]","classements.position"),("fields[]","classements.points"),("fields[]","classements.organisme_nom")]),A),
- "deep encoded": (B+"?"+urllib.parse.urlencode([("fields[]","id"),("fields[]","classements.position"),("deep[classements][_limit]","100")]),A),
- "access_token qs": (B+"?fields[]=id&fields[]=classements.position&access_token="+dh,{}),
- "classements collection": ("https://api.ffbb.app/items/ffbbserver_classements?limit=2&filter[idPoule][_eq]="+pid,A),
- "UA browser": (B+"?fields[]=id&fields[]=classements.position",{**A,"User-Agent":"Mozilla/5.0"}),
-}
-for k,(u,h) in tests.items():
-    s,b=get(u,h); print(k,"->",s,b[:300])
+cfg=json.loads(urllib.request.urlopen(urllib.request.Request("https://api.ffbb.app/items/configuration",headers=UA)).read())["data"]
+def ms(q):
+    req=urllib.request.Request("https://meilisearch-prod.ffbb.app/multi-search",data=json.dumps({"queries":q}).encode(),headers={**UA,"Authorization":"Bearer "+cfg["key_ms"],"Content-Type":"application/json"},method="POST")
+    return json.loads(urllib.request.urlopen(req).read())["results"]
+r=ms([{"indexUid":"ffbbserver_rencontres","q":"","limit":1000,"filter":['competitionId.id = "200000002897519"','idPoule.nom = "Poule A"']}])[0]
+print("poule matches", r.get("estimatedTotalHits"), len(r["hits"]), "joues", sum(1 for h in r["hits"] if h.get("joue")))
+print("sample", [(h["nomEquipe1"],h.get("resultatEquipe1"),h["nomEquipe2"],h.get("resultatEquipe2")) for h in r["hits"][:4]])

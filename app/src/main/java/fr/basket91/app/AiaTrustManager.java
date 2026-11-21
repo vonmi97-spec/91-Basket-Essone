@@ -31,6 +31,29 @@ import javax.net.ssl.X509TrustManager;
 public class AiaTrustManager implements X509TrustManager {
 
     private final X509TrustManager system;
+    private static X509TrustManager bundled; // racines Let's Encrypt embarquées
+
+    /** Charge les racines embarquées (res/raw) comme ancres de confiance supplémentaires. */
+    public static synchronized void init(android.content.Context ctx) {
+        if (bundled != null) return;
+        try {
+            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            ks.load(null, null);
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            int[] ids = {R.raw.isrg_root_x1, R.raw.isrg_root_x2};
+            int i = 0;
+            for (int id : ids) {
+                try (InputStream is = ctx.getResources().openRawResource(id)) {
+                    ks.setCertificateEntry("le" + (i++), cf.generateCertificate(is));
+                }
+            }
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(ks);
+            for (TrustManager tm : tmf.getTrustManagers()) {
+                if (tm instanceof X509TrustManager) { bundled = (X509TrustManager) tm; break; }
+            }
+        } catch (Exception ignored) { }
+    }
     private static final Map<String, List<X509Certificate>> CACHE = new ConcurrentHashMap<>();
     private static SSLSocketFactory factory;
 
@@ -65,6 +88,9 @@ public class AiaTrustManager implements X509TrustManager {
             system.checkServerTrusted(chain, authType);
             return;
         } catch (CertificateException first) {
+            if (bundled != null) {
+                try { bundled.checkServerTrusted(chain, authType); return; } catch (CertificateException ignored) { }
+            }
             List<X509Certificate> full = new ArrayList<>();
             for (X509Certificate c : chain) full.add(c);
             for (int i = 0; i < 4; i++) {
@@ -80,10 +106,11 @@ public class AiaTrustManager implements X509TrustManager {
                 }
                 if (issuers.isEmpty()) break;
                 full.addAll(issuers);
-                try {
-                    system.checkServerTrusted(full.toArray(new X509Certificate[0]), authType);
-                    return;
-                } catch (CertificateException ignored) { /* on continue à remonter la chaîne */ }
+                X509Certificate[] arr = full.toArray(new X509Certificate[0]);
+                try { system.checkServerTrusted(arr, authType); return; } catch (CertificateException ignored) { }
+                if (bundled != null) {
+                    try { bundled.checkServerTrusted(arr, authType); return; } catch (CertificateException ignored) { }
+                }
             }
             throw first;
         }

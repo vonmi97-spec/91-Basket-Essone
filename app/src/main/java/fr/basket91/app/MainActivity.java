@@ -33,6 +33,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AiaTrustManager.init(getApplicationContext());
         webView = new WebView(this);
         setContentView(webView);
 

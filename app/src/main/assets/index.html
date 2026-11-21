@@ -547,7 +547,7 @@ function rankTable(pk, p){
       const me = t && favKeys.has(favKey(t));
       return `<tr class="${me?"me":""}"><td>${esc(x.position || "")}</td><td class="tm">${logoHtml({logo: x.logo || (t && t.logo), club: x.club, nom: x.nom})}${esc(x.nom)}</td>
         <td class="pts">${esc(x.points)}</td><td>${esc(x.joues)}</td><td>${esc(x.gagnes)}</td><td>${esc(x.perdus)}</td><td>${x.diff>0?"+":""}${esc(x.diff)}</td></tr>`;
-    }).join("") + `</table><div class="mini">Source : FFBB</div>`;
+    }).join("") + `</table><div class="mini">${r.computed ? "Calculé à partir des résultats FFBB (victoire 2 pts, défaite 1 pt)" : "Classement officiel FFBB"}</div>`;
 }
 function matchTeam(p, x){
   const teams = Object.values(p.teams);
@@ -563,8 +563,36 @@ async function directusGet(path, fields, extra){
   const qs = fields.map(f => "fields[]=" + encodeURIComponent(f)).concat(extra || []).join("&");
   return httpJson("GET", API + path + "?" + qs, {"Authorization": "Bearer " + tk.dh});
 }
+async function computeRanking(p){
+  // Classement recalculé à partir de tous les matchs joués de la poule (victoire 2 pts, défaite 1 pt, forfait 0)
+  if (!p.compId) throw new Error("Compétition inconnue");
+  const filter = [`competitionId.id = ${q(p.compId)}`]; if (p.pouleNom) filter.push(`idPoule.nom = ${q(p.pouleNom)}`);
+  const [r] = await multiSearch([{indexUid: IDX_R, q: "", limit: 1000, filter}]);
+  const hits = ((r && r.hits) || []).filter(h => !p.id || !h.idPoule || !h.idPoule.id || String(h.idPoule.id) === p.id).map(normalize);
+  const T = {};
+  const row = t => T[t.nom] = T[t.nom] || {nom: t.nom, club: t.club, clubId: t.clubId, logo: t.logo, points: 0, joues: 0, gagnes: 0, perdus: 0, pm: 0, pe: 0};
+  hits.forEach(m => {
+    const a = row(m.t1), b = row(m.t2);
+    if (!m.joue) return;
+    const s1 = parseInt(m.t1.score, 10), s2 = parseInt(m.t2.score, 10);
+    if (isNaN(s1) || isNaN(s2) || s1 === s2) return;
+    a.joues++; b.joues++; a.pm += s1; a.pe += s2; b.pm += s2; b.pe += s1;
+    const forfait = (s1 === 20 && s2 === 0) || (s1 === 0 && s2 === 20);
+    const [w, l] = s1 > s2 ? [a, b] : [b, a];
+    w.gagnes++; w.points += 2; l.perdus++; l.points += forfait ? 0 : 1;
+  });
+  const rows = Object.values(T).map(x => ({...x, diff: x.pm - x.pe}))
+    .sort((x, y) => y.points - x.points || y.diff - x.diff || y.pm - x.pm || x.nom.localeCompare(y.nom));
+  rows.forEach((x, i) => x.position = i + 1);
+  return rows;
+}
 async function loadRanking(pk, pid, p){
   S.ranks[pk] = {loading: true}; renderMain();
+  if (store.get("directusBlocked", 0) > Date.now() - 6*3600e3){
+    try{ S.ranks[pk] = {rows: await computeRanking(p), computed: true}; }
+    catch(err){ S.ranks[pk] = {error: (err && err.message) || String(err)}; }
+    if (S.tab === "cls") renderMain(); return;
+  }
   try{
     if (!pid) throw new Error("Identifiant de poule inconnu");
     let j;
@@ -582,14 +610,19 @@ async function loadRanking(pk, pid, p){
     }).sort((a,b) => (a.position || 99) - (b.position || 99) || b.points - a.points || b.diff - a.diff);
     // nom d'équipe précis (avec numéro) à partir des matchs connus
     rows.forEach(x => { if (!/\d/.test(x.nom)){ const t = matchTeam(p, x); if (t && t.clubId === x.clubId) x.nom = t.nom; } });
+    if (!rows.length) throw new Error("vide");
     S.ranks[pk] = {rows};
-  }catch(err){ S.ranks[pk] = {error: (err && err.message) || String(err)}; }
+  }catch(err){
+    if (err && (err.status === 403 || err.status === 401)) store.set("directusBlocked", Date.now());
+    try{ S.ranks[pk] = {rows: await computeRanking(p), computed: true}; }
+    catch(e2){ S.ranks[pk] = {error: (e2 && e2.message) || String(e2)}; }
+  }
   if (S.tab === "cls") renderMain();
 }
 function pouleFromKey(pk){
   for (const m of allKnown()){ const k = m.pouleId || (divisionKey(m) + "|" + m.poule); if (k === pk){
     const teams = {}; allKnown().forEach(x => { const kx = x.pouleId || (divisionKey(x) + "|" + x.poule); if (kx === pk){ teams[x.t1.nom] = x.t1; teams[x.t2.nom] = x.t2; } });
-    return {id: m.pouleId, teams}; } }
+    return {id: m.pouleId, teams, compId: m.compId, pouleNom: m.poule}; } }
   return {id: "", teams: {}};
 }
 
