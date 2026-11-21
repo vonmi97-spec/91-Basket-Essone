@@ -596,7 +596,7 @@ function renderResults(list){
   if (S.resLoading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Récupération des résultats FFBB des ${S.resWeeks} derniers week-ends…</div>`; return; }
   if (S.resError){ main.innerHTML = `<div class="err">⚠️ ${esc(S.resError)}<br><button onclick="loadResults(true)">Réessayer</button></div>`; return; }
   if (!S.results){ loadResults(); return; }
-  const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>`;
+  const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>` + ffbbBtn(FFBB_COMITE, "🌐 Tous les résultats de l'Essonne sur FFBB ↗");
   if (!list.length){ main.innerHTML = `<div class="empty">Aucun résultat trouvé.${S.oldErr ? "<br>⚠️ " + esc(S.oldErr) : ""}</div>` + more; return; }
   list.sort((a,b) => (b.date - a.date) || catSortKey(a.cat) - catSortKey(b.cat));
   let html = "", lastW = "", lastDay = "";
@@ -651,7 +651,7 @@ function renderStandings(list){
     const dk = divisionKey(m);
     const d = c.divs[dk] = c.divs[dk] || {nom: m.comp, sexe: m.sexe, poules: {}};
     const pk = m.pouleId || (dk + "|" + m.poule);
-    const p = d.poules[pk] = d.poules[pk] || {id: m.pouleId, nom: m.poule || "Poule unique", teams: {}};
+    const p = d.poules[pk] = d.poules[pk] || {id: m.pouleId, nom: m.poule || "Poule unique", teams: {}, compCode: m.compCode};
     [m.t1, m.t2].forEach(t => { p.teams[t.nom] = t; });
   });
   const catArr = Object.values(cats).sort((a,b) => catSortKey(a.cat) - catSortKey(b.cat) || a.cat.code.localeCompare(b.cat.code));
@@ -690,7 +690,8 @@ function rankTable(pk, p){
   if (!r || r.loading) return `<div class="mini"><div class="spinner" style="width:22px;height:22px;border-width:3px;margin:6px auto"></div></div>`;
   const view = r.view || "cal";
   let html = `<div class="chips" style="padding:0 12px 8px"><button class="chip ${view==="cal"?"on":""}" data-pview="cal" data-pk="${esc(pk)}">Calendrier</button><button class="chip ${view==="rk"?"on":""}" data-pview="rk" data-pk="${esc(pk)}">Classement</button></div>`;
-  if (view === "cal") return html + calTable(pk, p, r);
+  const site = `<div style="padding:0 12px 10px">${ffbbBtn(ffbbCompUrl(p.compCode), "📊 Voir cette compétition sur FFBB ↗")}</div>`;
+  if (view === "cal") return html + calTable(pk, p, r) + site;
   if (r.rankError) return html + `<div class="mini">⚠️ ${esc(r.rankError)} <button class="chip" data-poule-retry="${esc(pk)}">Réessayer</button></div>`;
   if (!r.rows || !r.rows.length) return html + `<div class="mini">Classement pas encore disponible sur la FFBB.</div>`;
   const favKeys = new Set(S.favs.map(f => f.key));
@@ -700,7 +701,7 @@ function rankTable(pk, p){
       const me = t ? isFavTeam(t) : favKeys.has("n:" + norm(x.nom));
       return `<tr class="${me?"me":""}"><td>${esc(x.position || "")}</td><td class="tm">${logoHtml({logo: x.logo || (t && t.logo), club: x.club, nom: x.nom})}${esc(x.nom)}</td>
         <td class="pts">${esc(x.points)}</td><td>${esc(x.joues)}</td><td>${esc(x.gagnes)}</td><td>${esc(x.perdus)}</td><td>${x.diff>0?"+":""}${esc(x.diff)}</td></tr>`;
-    }).join("") + `</table><div class="mini">Classement officiel FFBB</div>`;
+    }).join("") + `</table><div class="mini">Classement officiel FFBB</div>` + site;
 }
 function calTable(pk, p, r){
   const ms = r.matches || [];
@@ -790,7 +791,7 @@ async function loadRanking(pk, pid, p){
 function pouleFromKey(pk){
   for (const m of allKnown()){ const k = m.pouleId || (divisionKey(m) + "|" + m.poule); if (k === pk){
     const teams = {}; allKnown().forEach(x => { const kx = x.pouleId || (divisionKey(x) + "|" + x.poule); if (kx === pk){ teams[x.t1.nom] = x.t1; teams[x.t2.nom] = x.t2; } });
-    return {id: m.pouleId, teams, compId: m.compId, pouleNom: m.poule, compNom: m.comp, cat: m.cat, sexe: m.sexe}; } }
+    return {id: m.pouleId, teams, compId: m.compId, compCode: m.compCode, pouleNom: m.poule, compNom: m.comp, cat: m.cat, sexe: m.sexe}; } }
   return {id: "", teams: {}};
 }
 
@@ -1345,6 +1346,16 @@ setInterval(() => {
 }, 60000);
 setTimeout(refreshNbaHome, 1500);
 
+/* ================= Liens vers le site FFBB ================= */
+const FFBB_SITE = "https://competitions.ffbb.com";
+const FFBB_COMITE = FFBB_SITE + "/ligues/idf/comites/0091";
+function ffbbCompUrl(code){ return code ? FFBB_COMITE + "/competitions/" + encodeURIComponent(String(code).toLowerCase()) : FFBB_COMITE; }
+function ffbbClubUrl(code){
+  const m = /^([A-Za-z]{3})(\d{4})/.exec(code || "");
+  return m ? `${FFBB_SITE}/ligues/${m[1].toLowerCase()}/comites/${m[2]}/clubs/${encodeURIComponent(code.toLowerCase())}` : "";
+}
+function ffbbBtn(url, label, cls){ return `<button class="btn ${cls || "sec"}" data-url="${esc(url)}">${label}</button>`; }
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1410,6 +1421,8 @@ function showMatch(id){
     ${m.t1.club ? `<div class="kv"><span class="k">Recevant</span><span>${esc(m.t1.club)}</span></div>` : ""}
     ${m.officiels ? `<div class="kv"><span class="k">Officiels</span><span>${esc(m.officiels)}</span></div>` : ""}
     ${m.salle.nom || m.salle.geo ? `<button class="btn" data-go="${esc(m.id)}">🧭 Itinéraire vers le gymnase</button>` : ""}
+    ${ffbbBtn(ffbbCompUrl(m.compCode), "📊 Résultats et classement sur FFBB ↗", "")}
+    ${[m.t1, m.t2].filter(t => ffbbClubUrl(t.code)).map(t => ffbbBtn(ffbbClubUrl(t.code), "🏠 " + esc(t.club || t.nom) + " sur FFBB ↗")).join("")}
     <button class="btn sec" onclick="closeSheet()">Fermer</button>`);
 }
 function showSettings(){
@@ -1425,6 +1438,7 @@ function showSettings(){
     <input id="setDown" type="number" min="1" max="6" value="${esc(store.get("placesDescente", 1))}">
     <button class="btn" id="saveSet">Enregistrer et recharger</button>
     <button class="btn sec" id="resetSet">Réinitialiser la détection automatique</button>
+    ${ffbbBtn(FFBB_COMITE, "🌐 Site FFBB de l'Essonne ↗")}
     <button class="btn sec" onclick="closeSheet()">Fermer</button>
     <p class="stat">Les matchs, logos et gymnases proviennent de l'API publique de la FFBB. Appli non officielle.</p></div>`);
 }
@@ -1437,6 +1451,8 @@ document.addEventListener("click", e => {
     else showFavPicker("");
     return;
   }
+  const lk = e.target.closest("[data-url]");
+  if (lk){ e.stopPropagation(); openUrl(lk.dataset.url); return; }
   const hm = e.target.closest("[data-home]");
   if (hm){ S.homeAll = hm.dataset.home === "all"; renderMain(); return; }
   const nd = e.target.closest("[data-nbaday]");
