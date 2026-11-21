@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>91 : Basket Essonne</title>
+<style>
+:root{
+  --bg:#0F1B2D; --card:#17263D; --card2:#1E3150; --line:#2A3F62;
+  --txt:#EEF2F8; --mute:#9DB0CC; --orange:#F26B1D; --orange2:#FF8C42;
+  --win:#3CCB7F; --lose:#E5576B; --radius:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Roboto,"Segoe UI",sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0F1B2D 85%,rgba(15,27,45,.9));padding:12px 14px 8px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .badge{width:38px;height:38px;border-radius:50%;background:var(--orange);display:grid;place-items:center;font-weight:800;font-size:15px;color:#fff;box-shadow:0 0 0 3px rgba(242,107,29,.25)}
+.brand h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.2px}
+.brand small{display:block;color:var(--mute);font-weight:500;font-size:12px}
+.brand .refresh{margin-left:auto;background:var(--card);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 10px;font-size:16px}
+.week{display:flex;align-items:center;justify-content:space-between;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px}
+.week button{background:none;border:none;color:var(--orange2);font-size:22px;padding:6px 14px}
+.week .lbl{text-align:center}
+.week .lbl b{display:block;font-size:15px}
+.week .lbl span{font-size:12px;color:var(--mute)}
+.search{margin-top:8px;position:relative}
+.search input{width:100%;padding:11px 12px 11px 36px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--txt);font-size:15px;outline:none}
+.search input:focus{border-color:var(--orange)}
+.search:before{content:"🔍";position:absolute;left:11px;top:10px;font-size:14px;opacity:.7}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--mute);font-size:13px;font-weight:600}
+.chip.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.tabs{display:flex;gap:4px;margin-top:6px}
+.tab{flex:1;padding:8px;text-align:center;border-radius:10px;color:var(--mute);font-weight:700;font-size:13px;background:transparent;border:none}
+.tab.on{background:var(--card2);color:var(--txt)}
+main{padding:6px 12px 90px}
+.day{margin:16px 2px 6px;font-weight:800;color:var(--orange2);text-transform:capitalize;font-size:14px}
+.group{margin:12px 2px 4px;color:var(--mute);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.match{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:8px 0}
+.match .top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--mute)}
+.match .comp{font-weight:700;color:#C9D6EA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat{background:var(--card2);border-radius:6px;padding:2px 7px;font-weight:800;color:var(--orange2);font-size:11px;flex:0 0 auto}
+.teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:10px 0 8px}
+.team{display:flex;flex-direction:column;align-items:center;text-align:center;gap:5px;min-width:0}
+.team .nm{font-size:13px;font-weight:700;line-height:1.2;word-break:break-word}
+.team.win .nm{color:var(--win)}
+.logo{width:46px;height:46px;border-radius:50%;background:#fff;object-fit:contain;padding:3px;flex:0 0 auto}
+.logo.ph{display:grid;place-items:center;background:var(--card2);color:var(--txt);font-weight:800;font-size:14px;padding:0;border:1px solid var(--line)}
+.mid{text-align:center;min-width:64px}
+.mid .hr{font-size:18px;font-weight:800}
+.mid .sc{font-size:20px;font-weight:900;letter-spacing:1px}
+.mid .st{font-size:11px;color:var(--mute)}
+.gym{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute);border-top:1px dashed var(--line);padding-top:7px}
+.gym b{color:#C9D6EA;font-weight:600}
+.gym .go{margin-left:auto;background:var(--card2);border:1px solid var(--line);color:var(--orange2);border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700}
+.star{background:none;border:none;font-size:18px;color:var(--mute);padding:0 2px}
+.star.on{color:#FFC83D}
+.empty,.err,.load{text-align:center;color:var(--mute);padding:40px 16px;line-height:1.5}
+.err{color:#FFB4BE}
+.err button,.empty button{margin-top:12px;background:var(--orange);border:none;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700}
+.spinner{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--orange);border-radius:50%;margin:0 auto 12px;animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.club{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin:8px 0}
+.club .info{flex:1;min-width:0}
+.club .info b{display:block;font-size:14px}
+.club .info span{font-size:12px;color:var(--mute)}
+.count{background:var(--card2);border-radius:999px;padding:4px 10px;font-weight:800;color:var(--orange2);font-size:12px}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;z-index:50}
+.sheet.on{display:flex}
+.sheet .box{background:var(--bg);width:100%;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;border-top:1px solid var(--line);padding:16px 16px 28px}
+.sheet h2{font-size:16px;margin:4px 0 12px}
+.kv{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.kv .k{color:var(--mute);min-width:96px}
+.btn{display:block;width:100%;margin-top:12px;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:12px;font-weight:800;font-size:15px}
+.btn.sec{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
+.stat{font-size:12px;color:var(--mute);margin:8px 2px 0}
+.settings label{display:block;color:var(--mute);font-size:13px;margin:12px 0 4px}
+.settings input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="badge">91</div>
+    <div><h1>Basket Essonne</h1><small>Championnat départemental · toutes catégories</small></div>
+    <button class="refresh" id="btnSettings" title="Réglages">⚙️</button>
+    <button class="refresh" id="btnRefresh" title="Actualiser">⟳</button>
+  </div>
+  <div class="week">
+    <button id="prevW" aria-label="Week-end précédent">‹</button>
+    <div class="lbl"><b id="wLabel">Ce week-end</b><span id="wDates"></span></div>
+    <button id="nextW" aria-label="Week-end suivant">›</button>
+  </div>
+  <div class="search"><input id="q" type="search" placeholder="Rechercher une équipe, un club, un gymnase…" autocomplete="off"></div>
+  <div class="chips" id="cats"></div>
+  <div class="chips" id="sexes"></div>
+  <div class="tabs">
+    <button class="tab on" data-tab="matchs">Matchs</button>
+    <button class="tab" data-tab="gyms">Gymnases</button>
+    <button class="tab" data-tab="clubs">Clubs</button>
+    <button class="tab" data-tab="favs">★ Favoris</button>
+  </div>
+</header>
+<main id="main"></main>
+
+<div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
+
+<script>
+"use strict";
+/* ================= Config ================= */
+const API = "https://api.ffbb.app/";
+const MEILI = "https://meilisearch-prod.ffbb.app/";
+const IDX_R = "ffbbserver_rencontres";
+const IDX_O = "ffbbserver_organismes";
+const CAT_ORDER = ["U7","U9","U11","U13","U15","U17","U18","U20","U21","SE","SEN","SENIORS","VET","LOISIR"];
+
+/* ================= Stockage ================= */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ================= HTTP (pont natif ou fetch) ================= */
+let reqSeq = 0; const pending = {};
+window.__nativeCb = function(id, status, text){
+  const p = pending[id]; if(!p) return; delete pending[id];
+  p({status, text});
+};
+function http(method, url, headers, body){
+  if (window.AndroidBridge && window.AndroidBridge.request){
+    return new Promise(res => {
+      const id = "r" + (++reqSeq); pending[id] = res;
+      window.AndroidBridge.request(id, method, url, JSON.stringify(headers||{}), body||"");
+    });
+  }
+  return fetch(url, {method, headers, body: body||undefined})
+    .then(r => r.text().then(t => ({status:r.status, text:t})))
+    .catch(e => ({status:0, text:"Erreur réseau : "+e.message}));
+}
+async function httpJson(method, url, headers, body){
+  const r = await http(method, url, headers, body);
+  if (r.status < 200 || r.status >= 300) {
+    const e = new Error("HTTP " + r.status + " — " + (r.text||"").slice(0,200)); e.status = r.status; throw e;
+  }
+  return JSON.parse(r.text);
+}
+
+/* ================= Jetons FFBB ================= */
+async function getTokens(force){
+  const c = store.get("tokens", null);
+  if (!force && c && c.ms && Date.now() - c.t < 6*3600e3) return c;
+  const j = await httpJson("GET", API + "items/configuration", {});
+  const d = j && j.data ? j.data : j;
+  const t = { ms: d.key_ms, dh: d.key_dh, t: Date.now() };
+  if (!t.ms) throw new Error("Jeton de recherche FFBB introuvable");
+  store.set("tokens", t); return t;
+}
+async function multiSearch(queries, retried){
+  const tk = await getTokens(retried);
+  try{
+    const j = await httpJson("POST", MEILI + "multi-search",
+      {"Authorization":"Bearer " + tk.ms, "Content-Type":"application/json"},
+      JSON.stringify({queries}));
+    return j.results || [];
+  }catch(e){
+    if (!retried && (e.status === 401 || e.status === 403)) return multiSearch(queries, true);
+    throw e;
+  }
+}
+const q = s => '"' + String(s).replace(/\\/g,"\\\\").replace(/"/g,'\\"') + '"';
+
+/* ================= Week-end ================= */
+function weekendRange(offset){
+  const now = new Date(); const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const wd = d.getDay(); // 0 dim … 6 sam
+  // vendredi de référence : si on est ven/sam/dim → ce week-end, sinon le prochain
+  let toFri = 5 - wd; if (wd === 6) toFri = -1; if (wd === 0) toFri = -2;
+  const fri = new Date(d); fri.setDate(d.getDate() + toFri + offset*7);
+  const end = new Date(fri); end.setDate(fri.getDate() + 2); end.setHours(23,59,59,999);
+  return { start: fri, end };
+}
+function fmtDay(d){ return d.toLocaleDateString("fr-FR",{weekday:"long", day:"numeric", month:"long"}); }
+function fmtShort(d){ return d.toLocaleDateString("fr-FR",{day:"numeric", month:"short"}); }
+
+/* ================= Comité organisateur (Essonne) ================= */
+async function findComite(range){
+  const saved = store.get("comite", null);
+  if (saved && (saved.id || saved.nom)) return saved;
+  // 1) annuaire des organismes
+  try{
+    const [r] = await multiSearch([{indexUid: IDX_O, q: "comite essonne", limit: 30}]);
+    const hit = (r && r.hits || []).find(h => /comit/i.test(h.nom||"") && /essonne/i.test(h.nom||""));
+    if (hit){ const c = {id: String(hit.id), nom: hit.nom}; store.set("comite", c); return c; }
+  }catch(e){ /* on tente la méthode suivante */ }
+  // 2) organisateurs présents sur la période
+  const tf = tsFilter(range);
+  const [r2] = await multiSearch([{indexUid: IDX_R, q: "", limit: 0, filter: [tf], facets: ["organisateur.nom"]}]);
+  const names = Object.keys((r2 && r2.facetDistribution && r2.facetDistribution["organisateur.nom"]) || {});
+  const nm = names.find(n => /essonne/i.test(n)) || names.find(n => /\b91\b/.test(n));
+  if (nm){ const c = {nom: nm}; store.set("comite", c); return c; }
+  throw new Error("Comité de l'Essonne introuvable dans les données FFBB. Renseigne son nom dans ⚙️ Réglages.");
+}
+function tsFilter(range){
+  // le timestamp peut être en secondes ou millisecondes : on couvre les deux (+/- 3 h de marge)
+  const a = Math.floor(range.start.getTime()/1000) - 3*3600, b = Math.floor(range.end.getTime()/1000) + 3*3600;
+  const f = "date_rencontre_timestamp";
+  return `(${f} >= ${a} AND ${f} <= ${b}) OR (${f} >= ${a*1000} AND ${f} <= ${b*1000})`;
+}
+function comiteFilter(c){
+  const parts = [];
+  if (c.id) parts.push(`organisateur.id = ${q(c.id)}`);
+  if (c.nom) parts.push(`organisateur.nom = ${q(c.nom)}`);
+  return parts.join(" OR ");
+}
+
+/* ================= Chargement des matchs ================= */
+async function loadMatches(range){
+  let comite = await findComite(range);
+  let res = await fetchMatches(range, comite);
+  if (!res.length && !comite.manual){
+    // la détection via l'annuaire a pu donner un nom/ID différent : on tente via les organisateurs de la période
+    const tf = tsFilter(range);
+    const [r2] = await multiSearch([{indexUid: IDX_R, q: "", limit: 0, filter: [tf], facets: ["organisateur.nom"]}]);
+    const names = Object.keys((r2 && r2.facetDistribution && r2.facetDistribution["organisateur.nom"]) || {});
+    const nm = names.find(n => /essonne/i.test(n));
+    if (nm && nm !== comite.nom){ comite = {nom: nm}; store.set("comite", comite); res = await fetchMatches(range, comite); }
+  }
+  return res;
+}
+async function fetchMatches(range, comite){
+  const filter = [tsFilter(range), comiteFilter(comite)];
+  let all = [], offset = 0, total = Infinity;
+  while (offset < total && offset < 3000){
+    const [r] = await multiSearch([{indexUid: IDX_R, q: "", limit: 500, offset, filter}]);
+    const hits = (r && r.hits) || [];
+    all = all.concat(hits);
+    total = r && (r.estimatedTotalHits != null ? r.estimatedTotalHits : r.totalHits != null ? r.totalHits : hits.length);
+    if (hits.length < 500) break;
+    offset += 500;
+  }
+  return all.map(normalize).filter(m => m.date && m.date >= new Date(range.start.getTime()) && m.date <= range.end);
+}
+
+/* ================= Normalisation ================= */
+function logoId(x){
+  if (!x) return null;
+  if (typeof x === "string") return x;
+  if (typeof x === "object") return x.id || null;
+  return null;
+}
+function parseDate(h){
+  let s = h.date_rencontre || h.date;
+  if (s){
+    const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(" ","T"));
+    if (!isNaN(d)) {
+      // si l'heure est 00:00 et "horaire" est fourni (ex. 1530)
+      if (d.getHours()===0 && d.getMinutes()===0 && h.horaire && /^\d{3,4}$/.test(String(h.horaire))){
+        const hh = String(h.horaire).padStart(4,"0"); d.setHours(+hh.slice(0,2), +hh.slice(2));
+      }
+      return d;
+    }
+  }
+  let t = h.date_rencontre_timestamp; if (t){ if (t < 1e11) t *= 1000; return new Date(t); }
+  return null;
+}
+function catOf(h){
+  const c = (h.competitionId && h.competitionId.categorie) || {};
+  let code = (c.code || "").toUpperCase();
+  if (!code){
+    const m = /(U\d{1,2})/i.exec((h.competitionId && h.competitionId.nom) || "");
+    code = m ? m[1].toUpperCase() : ((/senior/i.test((h.competitionId && h.competitionId.nom)||"")) ? "SE" : "Autre");
+  }
+  return { code, libelle: c.libelle || code, ordre: c.ordre != null ? +c.ordre : null };
+}
+function sexeOf(h){
+  const s = ((h.competitionId && h.competitionId.sexe) || h.sexe || "").toString().toLowerCase();
+  if (s.startsWith("f")) return "F"; if (s.startsWith("m")) return "M"; if (s.startsWith("x")||s.includes("mixte")) return "X";
+  return "";
+}
+function team(h, n){
+  const org = h["idOrganismeEquipe"+n] || {}; const eng = h["idEngagementEquipe"+n] || {};
+  return {
+    nom: h["nomEquipe"+n] || eng.nom || org.nom || "?",
+    club: org.nom || "", clubId: org.id ? String(org.id) : "", code: org.code || "",
+    logo: logoId(org.logo) || logoId(eng.logo),
+    score: h["resultatEquipe"+n]
+  };
+}
+function normalize(h){
+  const s = h.salle || {}; const com = (s.commune && typeof s.commune === "object") ? s.commune : {};
+  const carto = (s.cartographie && typeof s.cartographie === "object") ? s.cartographie : {};
+  const geo = h._geo || (carto.latitude ? {lat: carto.latitude, lng: carto.longitude} : null);
+  const cat = catOf(h);
+  const comp = h.competitionId || {};
+  const t1 = team(h,1), t2 = team(h,2);
+  const joue = !!h.joue || (t1.score!=null && t1.score!=="" && t2.score!=null && t2.score!=="" && +t1.score + +t2.score > 0);
+  return {
+    id: String(h.id || h.uniqueKey || Math.random()),
+    date: parseDate(h), cat, sexe: sexeOf(h),
+    comp: comp.nomExtended || comp.nom || h.nomExtended || "Compétition",
+    compCode: comp.code || "", poule: (h.idPoule && h.idPoule.nom) || "", journee: h.numeroJournee,
+    t1, t2, joue,
+    salle: { nom: s.libelle || s.libelle2 || "", adresse: [s.adresse, s.adresseComplement].filter(Boolean).join(" "),
+             cp: com.codePostal || carto.codePostal || "", ville: com.libelle || carto.ville || "", geo },
+    officiels: h.officiels_string || ""
+  };
+}
+
+/* ================= Logos ================= */
+function logoUrl(id, withToken){
+  let u = API + "assets/" + encodeURIComponent(id) + "?width=120&height=120&fit=contain&format=png";
+  if (withToken){ const t = store.get("tokens", {}); if (t.dh) u += "&access_token=" + encodeURIComponent(t.dh); }
+  return u;
+}
+function initials(n){
+  const w = String(n||"?").replace(/[^A-Za-zÀ-ÿ0-9 ]/g," ").split(/\s+/).filter(x => x && x.length>1 && !/^(de|du|des|la|le|les|et|basket|bc|ball)$/i.test(x));
+  return (w.slice(0,2).map(x => x[0]).join("") || "?").toUpperCase();
+}
+function logoHtml(t){
+  const ph = `<div class="logo ph">${esc(initials(t.club||t.nom))}</div>`;
+  if (!t.logo) return ph;
+  return `<img class="logo" loading="lazy" alt="" src="${logoUrl(t.logo)}" data-id="${esc(t.logo)}" data-ini="${esc(initials(t.club||t.nom))}" onerror="logoErr(this)">`;
+}
+window.logoErr = function(img){
+  if (!img.dataset.tok){ img.dataset.tok = "1"; img.src = logoUrl(img.dataset.id, true); return; }
+  const d = document.createElement("div"); d.className = "logo ph"; d.textContent = img.dataset.ini || "?"; img.replaceWith(d);
+};
+
+/* ================= État & rendu ================= */
+const S = { offset: 0, matches: [], cat: "ALL", sexe: "ALL", q: "", tab: "matchs", loading: false, error: null, club: null,
+            favs: store.get("favs", []) };
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+
+function catSortKey(c){
+  if (c.ordre != null) return c.ordre;
+  const i = CAT_ORDER.findIndex(x => c.code.startsWith(x)); return i < 0 ? 99 : i;
+}
+function filtered(){
+  const words = norm(S.q).split(/\s+/).filter(Boolean);
+  return S.matches.filter(m => {
+    if (S.cat !== "ALL" && m.cat.code !== S.cat) return false;
+    if (S.sexe !== "ALL" && m.sexe !== S.sexe) return false;
+    if (S.club && m.t1.clubId !== S.club && m.t2.clubId !== S.club) return false;
+    if (S.tab === "favs" && !isFavMatch(m)) return false;
+    if (!words.length) return true;
+    const hay = norm([m.t1.nom, m.t2.nom, m.t1.club, m.t2.club, m.salle.nom, m.salle.ville, m.comp, m.cat.libelle].join(" "));
+    return words.every(w => hay.includes(w));
+  });
+}
+function favKey(t){ return t.clubId ? "c:" + t.clubId : "n:" + norm(t.nom); }
+function isFavMatch(m){ return S.favs.some(f => f.key === favKey(m.t1) || f.key === favKey(m.t2)); }
+
+function renderWeek(){
+  const r = weekendRange(S.offset);
+  const lbl = S.offset === 0 ? "Ce week-end" : S.offset === 1 ? "Week-end prochain" : S.offset === -1 ? "Week-end dernier"
+            : (S.offset > 0 ? `Dans ${S.offset} semaines` : `Il y a ${-S.offset} semaines`);
+  $("wLabel").textContent = lbl;
+  const sat = new Date(r.start); sat.setDate(sat.getDate()+1);
+  $("wDates").textContent = `ven. ${fmtShort(r.start)} → dim. ${fmtShort(r.end)}`;
+}
+function renderChips(){
+  const cats = {}; S.matches.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
+  const list = Object.values(cats).sort((a,b) => catSortKey(a.c) - catSortKey(b.c) || a.c.code.localeCompare(b.c.code));
+  $("cats").innerHTML = `<button class="chip ${S.cat==="ALL"?"on":""}" data-cat="ALL">Toutes (${S.matches.length})</button>` +
+    list.map(x => `<button class="chip ${S.cat===x.c.code?"on":""}" data-cat="${esc(x.c.code)}">${esc(prettyCat(x.c))} · ${x.n}</button>`).join("");
+  const sx = [["ALL","Tous"],["F","Féminin"],["M","Masculin"],["X","Mixte"]].filter(([k]) => k==="ALL" || S.matches.some(m => m.sexe===k));
+  $("sexes").innerHTML = sx.map(([k,l]) => `<button class="chip ${S.sexe===k?"on":""}" data-sexe="${k}">${l}</button>`).join("") +
+    (S.club ? `<button class="chip on" data-clearclub="1">✕ ${esc(clubName(S.club))}</button>` : "");
+}
+function prettyCat(c){
+  const s = c.code; if (/^SE/.test(s)) return "Seniors"; if (/^U\d+/.test(s)) return s.match(/^U\d+/)[0]; return c.libelle || s;
+}
+function clubName(id){
+  for (const m of S.matches){ if (m.t1.clubId===id) return m.t1.club || m.t1.nom; if (m.t2.clubId===id) return m.t2.club || m.t2.nom; }
+  return "Club";
+}
+
+function matchCard(m){
+  const hr = m.date ? m.date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) : "--:--";
+  const s1 = +m.t1.score, s2 = +m.t2.score;
+  const mid = m.joue ? `<div class="sc">${esc(m.t1.score)} - ${esc(m.t2.score)}</div><div class="st">Terminé · ${hr}</div>`
+                     : `<div class="hr">${hr}</div><div class="st">${m.journee ? "J" + esc(m.journee) : ""}</div>`;
+  const sexe = m.sexe === "F" ? " F" : m.sexe === "M" ? " M" : "";
+  return `<div class="match" data-id="${esc(m.id)}">
+    <div class="top"><span class="cat">${esc(prettyCat(m.cat))}${sexe}</span><span class="comp">${esc(m.comp)}${m.poule ? " · " + esc(m.poule) : ""}</span></div>
+    <div class="teams">
+      <div class="team ${m.joue && s1>s2 ? "win":""}">${logoHtml(m.t1)}<div class="nm">${esc(m.t1.nom)}</div></div>
+      <div class="mid">${mid}</div>
+      <div class="team ${m.joue && s2>s1 ? "win":""}">${logoHtml(m.t2)}<div class="nm">${esc(m.t2.nom)}</div></div>
+    </div>
+    <div class="gym">📍 <span><b>${esc(m.salle.nom || "Gymnase non précisé")}</b>${m.salle.ville ? " · " + esc(m.salle.ville) : ""}</span>
+      ${m.salle.nom || m.salle.geo ? `<button class="go" data-go="${esc(m.id)}">Itinéraire</button>` : ""}</div>
+  </div>`;
+}
+
+function renderMain(){
+  const main = $("main");
+  if (S.loading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Chargement des matchs du week-end…</div>`; return; }
+  if (S.error){ main.innerHTML = `<div class="err">⚠️ ${esc(S.error)}<br><button onclick="reload(true)">Réessayer</button></div>`; return; }
+  const list = filtered();
+  if (S.tab === "clubs") return renderClubs(list);
+  if (S.tab === "gyms") return renderGyms(list);
+  if (!list.length){
+    main.innerHTML = `<div class="empty">${S.tab==="favs" ? (S.favs.length ? "Aucun match de tes équipes favorites ce week-end." : "Pas encore de favoris.<br>Ouvre un match puis touche ☆ sur une équipe.") : S.matches.length ? "Aucun match ne correspond à ta recherche." : "Aucun match départemental trouvé pour ce week-end<br>(vacances scolaires ou trêve ?)."}</div>`;
+    return;
+  }
+  list.sort((a,b) => (a.date - b.date) || catSortKey(a.cat) - catSortKey(b.cat));
+  let html = "", lastDay = "";
+  for (const m of list){
+    const day = m.date ? fmtDay(m.date) : "Date inconnue";
+    if (day !== lastDay){ html += `<div class="day">${esc(day)}</div>`; lastDay = day; }
+    html += matchCard(m);
+  }
+  html += `<div class="stat">${list.length} match${list.length>1?"s":""} · Données FFBB</div>`;
+  main.innerHTML = html;
+}
+function renderGyms(list){
+  const g = {};
+  list.forEach(m => { const k = (m.salle.nom||"Gymnase non précisé") + "|" + m.salle.ville; (g[k] = g[k] || {s:m.salle, ms:[]}).ms.push(m); });
+  const arr = Object.values(g).sort((a,b) => (a.s.ville||"").localeCompare(b.s.ville||"") || (a.s.nom||"").localeCompare(b.s.nom||""));
+  if (!arr.length){ $("main").innerHTML = `<div class="empty">Aucun gymnase pour cette sélection.</div>`; return; }
+  $("main").innerHTML = arr.map(x => {
+    x.ms.sort((a,b) => a.date - b.date);
+    return `<div class="group">📍 ${esc(x.s.nom||"Gymnase non précisé")}${x.s.ville ? " — " + esc(x.s.ville) : ""} · ${x.ms.length} match${x.ms.length>1?"s":""}</div>` + x.ms.map(matchCard).join("");
+  }).join("");
+}
+function renderClubs(list){
+  const c = {};
+  list.forEach(m => [m.t1, m.t2].forEach(t => {
+    const k = t.clubId || "n:" + norm(t.club || t.nom);
+    if (!c[k]) c[k] = {t, n:0, id:t.clubId};
+    c[k].n++;
+  }));
+  const arr = Object.values(c).sort((a,b) => (a.t.club||a.t.nom).localeCompare(b.t.club||b.t.nom));
+  if (!arr.length){ $("main").innerHTML = `<div class="empty">Aucun club pour cette sélection.</div>`; return; }
+  $("main").innerHTML = arr.map(x => `<div class="club" data-club="${esc(x.id)}">${logoHtml(x.t)}
+     <div class="info"><b>${esc(x.t.club || x.t.nom)}</b><span>${x.t.code ? esc(x.t.code) : ""}</span></div>
+     <span class="count">${x.n} match${x.n>1?"s":""}</span></div>`).join("");
+}
+
+/* ================= Fiche match ================= */
+function openSheet(html){ $("sheetBox").innerHTML = html; $("sheet").classList.add("on"); }
+function closeSheet(){ $("sheet").classList.remove("on"); }
+window.onAndroidBack = function(){ if ($("sheet").classList.contains("on")){ closeSheet(); return true; } if (S.club){ S.club=null; render(); return true; } return false; };
+
+function mapsUrl(m){
+  const s = m.salle;
+  if (s.geo && s.geo.lat) return `https://www.google.com/maps/dir/?api=1&destination=${s.geo.lat},${s.geo.lng}`;
+  return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([s.nom, s.adresse, s.cp, s.ville].filter(Boolean).join(" "));
+}
+function openUrl(u){ if (window.AndroidBridge && AndroidBridge.openUrl) AndroidBridge.openUrl(u); else window.open(u, "_blank"); }
+function favBtn(t){
+  const on = S.favs.some(f => f.key === favKey(t));
+  return `<button class="star ${on?"on":""}" data-fav="${esc(favKey(t))}" data-favname="${esc(t.nom)}">${on?"★":"☆"}</button>`;
+}
+function showMatch(id){
+  const m = S.matches.find(x => x.id === id); if (!m) return;
+  const dt = m.date ? m.date.toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}) : "—";
+  openSheet(`<h2>${esc(m.comp)}</h2>
+    <div class="teams">
+      <div class="team">${logoHtml(m.t1)}<div class="nm">${esc(m.t1.nom)} ${favBtn(m.t1)}</div></div>
+      <div class="mid">${m.joue ? `<div class="sc">${esc(m.t1.score)} - ${esc(m.t2.score)}</div>` : `<div class="hr">VS</div>`}</div>
+      <div class="team">${logoHtml(m.t2)}<div class="nm">${esc(m.t2.nom)} ${favBtn(m.t2)}</div></div>
+    </div>
+    <div class="kv"><span class="k">Date</span><span>${esc(dt)}</span></div>
+    <div class="kv"><span class="k">Catégorie</span><span>${esc(m.cat.libelle)}${m.sexe ? " · " + ({F:"Féminin",M:"Masculin",X:"Mixte"}[m.sexe]) : ""}</span></div>
+    ${m.poule ? `<div class="kv"><span class="k">Poule</span><span>${esc(m.poule)}${m.journee ? " · Journée " + esc(m.journee) : ""}</span></div>` : ""}
+    <div class="kv"><span class="k">Gymnase</span><span><b>${esc(m.salle.nom || "Non précisé")}</b><br>${esc(m.salle.adresse)}<br>${esc(m.salle.cp)} ${esc(m.salle.ville)}</span></div>
+    ${m.t1.club ? `<div class="kv"><span class="k">Recevant</span><span>${esc(m.t1.club)}</span></div>` : ""}
+    ${m.officiels ? `<div class="kv"><span class="k">Officiels</span><span>${esc(m.officiels)}</span></div>` : ""}
+    ${m.salle.nom || m.salle.geo ? `<button class="btn" data-go="${esc(m.id)}">🧭 Itinéraire vers le gymnase</button>` : ""}
+    <button class="btn sec" onclick="closeSheet()">Fermer</button>`);
+}
+function showSettings(){
+  const c = store.get("comite", {}) || {};
+  openSheet(`<div class="settings"><h2>Réglages</h2>
+    <label>Comité organisateur détecté</label>
+    <input id="setNom" value="${esc(c.nom||"")}" placeholder="ex. COMITE DE L'ESSONNE">
+    <label>Identifiant FFBB du comité (optionnel)</label>
+    <input id="setId" value="${esc(c.id||"")}" placeholder="détecté automatiquement">
+    <button class="btn" id="saveSet">Enregistrer et recharger</button>
+    <button class="btn sec" id="resetSet">Réinitialiser la détection automatique</button>
+    <button class="btn sec" onclick="closeSheet()">Fermer</button>
+    <p class="stat">Les matchs, logos et gymnases proviennent de l'API publique de la FFBB. Appli non officielle.</p></div>`);
+}
+
+/* ================= Événements ================= */
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-cat],[data-sexe],[data-tab],[data-go],[data-fav],[data-club],[data-clearclub],.match,#saveSet,#resetSet");
+  if (e.target.id === "sheet"){ closeSheet(); return; }
+  if (!el) return;
+  if (el.id === "saveSet"){ const nom = $("setNom").value.trim(), id = $("setId").value.trim(); store.set("comite", (nom||id) ? {nom: nom||undefined, id: id||undefined, manual: true} : null); closeSheet(); reload(); return; }
+  if (el.id === "resetSet"){ store.set("comite", null); closeSheet(); reload(true); return; }
+  if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
+  if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
+  if (el.dataset.clearclub){ S.club = null; render(); return; }
+  if (el.dataset.tab){ S.tab = el.dataset.tab; document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderMain(); return; }
+  if (el.dataset.go){ e.stopPropagation(); const m = S.matches.find(x => x.id === el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
+  if (el.dataset.fav){
+    e.stopPropagation(); const k = el.dataset.fav;
+    const i = S.favs.findIndex(f => f.key === k);
+    if (i >= 0) S.favs.splice(i,1); else S.favs.push({key:k, nom: el.dataset.favname});
+    store.set("favs", S.favs); const on = i < 0; el.classList.toggle("on", on); el.textContent = on ? "★" : "☆";
+    if (S.tab === "favs") renderMain(); return;
+  }
+  if (el.dataset.club !== undefined){ if (el.dataset.club){ S.club = el.dataset.club; S.tab = "matchs"; document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab==="matchs")); render(); window.scrollTo(0,0); } return; }
+  if (el.classList.contains("match")){ showMatch(el.dataset.id); }
+});
+$("prevW").onclick = () => { S.offset--; reload(); };
+$("nextW").onclick = () => { S.offset++; reload(); };
+$("btnRefresh").onclick = () => reload(true);
+$("btnSettings").onclick = showSettings;
+let qT; $("q").addEventListener("input", e => { clearTimeout(qT); qT = setTimeout(() => { S.q = e.target.value; renderMain(); }, 150); });
+
+function render(){ renderWeek(); renderChips(); renderMain(); }
+
+const cache = {};
+async function reload(force){
+  const key = "w" + S.offset;
+  renderWeek();
+  if (!force && cache[key]){ S.matches = cache[key]; S.error = null; S.cat = "ALL"; render(); return; }
+  S.loading = true; S.error = null; S.cat = "ALL"; S.club = null; renderChips(); renderMain();
+  const myOffset = S.offset;
+  try{
+    const ms = await loadMatches(weekendRange(S.offset));
+    if (myOffset !== S.offset) return;
+    cache[key] = ms; S.matches = ms;
+    store.set("last_" + key, {t: Date.now(), n: ms.length});
+  }catch(err){
+    if (myOffset !== S.offset) return;
+    S.error = (err && err.message) || String(err); S.matches = [];
+  }finally{
+    if (myOffset === S.offset){ S.loading = false; render(); }
+  }
+}
+window.reload = reload; window.closeSheet = closeSheet;
+reload();
+</script>
+</body>
+</html>
