@@ -34,6 +34,8 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AiaTrustManager.init(getApplicationContext());
+        NotifJob.createChannels(this);
+        NotifJob.schedule(getApplicationContext());
         webView = new WebView(this);
         setContentView(webView);
 
@@ -60,6 +62,15 @@ public class MainActivity extends Activity {
         });
         webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
         webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 42) {
+            boolean ok = grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            webView.evaluateJavascript("window.onNotifPerm && window.onNotifPerm(" + ok + ")", null);
+        }
     }
 
     @Override
@@ -119,6 +130,40 @@ public class MainActivity extends Activity {
                         + JSONObject.quote(text) + ")";
                 webView.post(() -> webView.evaluateJavascript(js, null));
             });
+        }
+
+        @JavascriptInterface
+        public void setNotifConfig(String json) {
+            getSharedPreferences(NotifJob.PREFS, MODE_PRIVATE).edit().putString("config", json).apply();
+            NotifJob.schedule(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public boolean notifAllowed() {
+            if (android.os.Build.VERSION.SDK_INT < 33) return true;
+            return checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+
+        @JavascriptInterface
+        public void askNotifPermission() {
+            runOnUiThread(() -> {
+                if (android.os.Build.VERSION.SDK_INT >= 33 && !notifAllowed()) {
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 42);
+                } else {
+                    webView.evaluateJavascript("window.onNotifPerm && window.onNotifPerm(true)", null);
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void testNotif() {
+            NotifJob.notify(getApplicationContext(), 777, NotifJob.CHANNEL_RESULT, "🏀 Notifications activées",
+                    "Tu seras prévenu des matchs et résultats de tes équipes favorites.");
+        }
+
+        @JavascriptInterface
+        public void checkNow() {
+            pool.submit(() -> { try { NotifJob.check(getApplicationContext()); } catch (Exception ignored) { } });
         }
 
         @JavascriptInterface

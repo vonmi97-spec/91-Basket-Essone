@@ -15,9 +15,10 @@ html,body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-
 header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0F1B2D 85%,rgba(15,27,45,.9));padding:12px 14px 8px}
 .brand{display:flex;align-items:center;gap:10px}
 .brand .badge{width:38px;height:38px;border-radius:50%;background:var(--orange);display:grid;place-items:center;font-weight:800;font-size:15px;color:#fff;box-shadow:0 0 0 3px rgba(242,107,29,.25)}
+.brand > div:nth-child(2){margin-right:auto}
 .brand h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.2px}
 .brand small{display:block;color:var(--mute);font-weight:500;font-size:12px}
-.brand .refresh{margin-left:auto;background:var(--card);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 10px;font-size:16px}
+.brand .refresh{padding:8px 8px !important;background:var(--card);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 10px;font-size:16px}
 .week{display:flex;align-items:center;justify-content:space-between;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px}
 .week button{background:none;border:none;color:var(--orange2);font-size:22px;padding:6px 14px}
 .week .lbl{text-align:center}
@@ -102,6 +103,7 @@ table.rk tr.me td{background:rgba(242,107,29,.12)}
   <div class="brand">
     <div class="badge">91</div>
     <div><h1>Basket Essonne</h1><small>Championnat départemental · toutes catégories</small></div>
+    <button class="refresh" id="btnNotif" title="Notifications">🔔</button>
     <button class="refresh" id="btnSettings" title="Réglages">⚙️</button>
     <button class="refresh" id="btnRefresh" title="Actualiser">⟳</button>
   </div>
@@ -995,6 +997,56 @@ function renderLive(){
   main.innerHTML = html;
 }
 
+/* ================= Notifications ================= */
+const hasNative = () => !!(window.AndroidBridge && window.AndroidBridge.setNotifConfig);
+S.notif = store.get("notif", {enabled: false, rappel: true, rappelMin: 60, resultats: true, asked: false});
+function saveNotif(){ store.set("notif", S.notif); syncNotif(); }
+function syncNotif(){
+  if (!hasNative()) return;
+  try{ AndroidBridge.setNotifConfig(JSON.stringify({...S.notif, favs: S.favs, comite: store.get("comite", null)})); }catch(e){}
+}
+window.onNotifPerm = function(ok){
+  S.notif.enabled = !!ok; S.notif.asked = true; saveNotif();
+  if (ok){ try{ AndroidBridge.testNotif(); AndroidBridge.checkNow(); }catch(e){} }
+  showNotifSheet(ok ? "✅ Notifications activées." : "⚠️ Autorisation refusée : active les notifications de l'appli dans les réglages Android.");
+};
+function enableNotif(){
+  if (!hasNative()){ showNotifSheet("Les notifications ne fonctionnent que dans l'appli Android."); return; }
+  AndroidBridge.askNotifPermission();
+}
+function proposeNotif(teamName){
+  if (S.notif.enabled || S.notif.asked) return;
+  openSheet(`<h2>🔔 Être prévenu ?</h2>
+    <p style="color:var(--mute);line-height:1.5">Recevoir une notification pour <b style="color:var(--txt)">${esc(teamName)}</b> et tes autres équipes favorites :</p>
+    <div class="kv"><span>⏰</span><span>Un rappel avant chaque match (heure + gymnase)</span></div>
+    <div class="kv"><span>🏀</span><span>Le score final dès qu'il est publié par la FFBB</span></div>
+    <button class="btn" data-notif="on">Activer les notifications</button>
+    <button class="btn sec" data-notif="later">Plus tard</button>`);
+}
+function showNotifSheet(msg){
+  const n = S.notif;
+  const opts = [15, 30, 60, 120, 180].map(v => `<option value="${v}" ${n.rappelMin===v?"selected":""}>${v < 60 ? v + " min" : (v/60) + " h"} avant</option>`).join("");
+  openSheet(`<div class="settings"><h2>🔔 Notifications</h2>
+    ${msg ? `<div class="stat" style="margin-bottom:8px">${esc(msg)}</div>` : ""}
+    <div class="kv"><span class="k">État</span><span><b>${n.enabled ? "Activées" : "Désactivées"}</b></span></div>
+    <div class="kv"><span class="k">Équipes suivies</span><span>${S.favs.length ? S.favs.map(f => esc(f.nom)).join("<br>") : "Aucune — ajoute des favoris ★ depuis un match"}</span></div>
+    <label><input type="checkbox" id="nRappel" ${n.rappel?"checked":""} style="width:auto"> Rappel avant le match</label>
+    <select id="nMin" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt)">${opts}</select>
+    <label><input type="checkbox" id="nRes" ${n.resultats?"checked":""} style="width:auto"> Score final publié</label>
+    ${n.enabled ? `<button class="btn" data-notif="save">Enregistrer</button><button class="btn sec" data-notif="test">Envoyer une notification de test</button><button class="btn sec" data-notif="off">Désactiver</button>`
+                : `<button class="btn" data-notif="on">Activer les notifications</button>`}
+    <button class="btn sec" onclick="closeSheet()">Fermer</button>
+    <p class="stat">Vérification automatique toutes les 15 min environ, même appli fermée.</p></div>`);
+}
+function handleNotifClick(act){
+  const read = () => { const r = $("nRappel"), m = $("nMin"), res = $("nRes"); if (r){ S.notif.rappel = r.checked; S.notif.rappelMin = +m.value; S.notif.resultats = res.checked; } };
+  if (act === "on"){ read(); S.notif.asked = true; store.set("notif", S.notif); enableNotif(); }
+  else if (act === "later"){ S.notif.asked = true; store.set("notif", S.notif); closeSheet(); }
+  else if (act === "save"){ read(); saveNotif(); showNotifSheet("✅ Enregistré."); }
+  else if (act === "test"){ try{ AndroidBridge.testNotif(); }catch(e){} }
+  else if (act === "off"){ S.notif.enabled = false; saveNotif(); showNotifSheet("Notifications désactivées."); }
+}
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1076,6 +1128,8 @@ function showSettings(){
 
 /* ================= Événements ================= */
 document.addEventListener("click", e => {
+  const nb = e.target.closest("[data-notif]");
+  if (nb){ handleNotifClick(nb.dataset.notif); return; }
   const la = e.target.closest("[data-liveall]");
   if (la){ S.liveAll = la.dataset.liveall === "1"; renderMain(); return; }
   const um = e.target.closest("[data-upmode]");
@@ -1109,6 +1163,7 @@ document.addEventListener("click", e => {
     const i = S.favs.findIndex(f => f.key === k);
     if (i >= 0) S.favs.splice(i,1); else S.favs.push({key:k, nom: el.dataset.favname});
     store.set("favs", S.favs); const on = i < 0; el.classList.toggle("on", on); el.textContent = on ? "★" : "☆";
+    syncNotif(); if (on) setTimeout(() => proposeNotif(el.dataset.favname), 400);
     if (S.tab === "favs") renderMain(); return;
   }
   if (el.dataset.club !== undefined){ if (el.dataset.club){ S.club = el.dataset.club; S.tab = "matchs"; document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab==="matchs")); render(); window.scrollTo(0,0); } return; }
@@ -1118,6 +1173,7 @@ $("prevW").onclick = () => { S.offset--; reload(); };
 $("nextW").onclick = () => { S.offset++; reload(); };
 $("btnRefresh").onclick = () => reload(true);
 $("btnSettings").onclick = showSettings;
+$("btnNotif").onclick = () => showNotifSheet();
 let qT; $("q").addEventListener("input", e => { clearTimeout(qT); qT = setTimeout(() => { S.q = e.target.value; renderMain(); }, 150); });
 
 function render(){ renderWeek(); renderChips(); renderMain(); }
@@ -1132,7 +1188,7 @@ async function reload(force){
   try{
     const ms = await loadMatches(weekendRange(S.offset));
     if (myOffset !== S.offset) return;
-    cache[key] = ms; S.matches = ms;
+    cache[key] = ms; S.matches = ms; syncNotif();
     store.set("last_" + key, {t: Date.now(), n: ms.length});
   }catch(err){
     if (myOffset !== S.offset) return;
