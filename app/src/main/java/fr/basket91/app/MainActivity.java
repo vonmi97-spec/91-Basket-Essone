@@ -193,6 +193,19 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void clearData() {
+            getSharedPreferences(NotifJob.PREFS, MODE_PRIVATE).edit().clear().apply();
+            android.app.job.JobScheduler js = (android.app.job.JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
+            if (js != null) js.cancel(NotifJob.JOB_ID);
+            runOnUiThread(() -> {
+                android.webkit.WebStorage.getInstance().deleteAllData();
+                android.webkit.CookieManager.getInstance().removeAllCookies(null);
+                webView.clearCache(true);
+                webView.clearHistory();
+            });
+        }
+
+        @JavascriptInterface
         public boolean isSystemDark() {
             return systemDark();
         }

@@ -196,6 +196,11 @@ td.tm .sty{cursor:pointer}
 .srow .logo{width:34px;height:34px;font-size:11px}.sinfo{flex:1;min-width:0}.sinfo b{font-size:14px}
 .stl{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 3px}.stl .badge2{margin-left:0}
 .ssub{font-size:12px;color:var(--mute);display:flex;flex-wrap:wrap;align-items:center;gap:6px}.sform .form{width:18px;height:18px;line-height:18px;font-size:10px;margin-right:2px}
+.pv{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;font-size:13.5px;line-height:1.5}
+.pv > b{display:block;font-size:14.5px;margin-bottom:2px}.pv p{margin:4px 0}.pv ul{margin:4px 0;padding-left:20px}.pv li b{display:inline;font-size:inherit}
+.pv a{color:var(--orange2)}
+#pvNotice{position:fixed;left:10px;right:10px;bottom:12px;z-index:65;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px;font-size:13px;line-height:1.45;color:var(--txt);box-shadow:0 8px 24px var(--shadow)}
+#pvNotice .pvb{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
 </style>
 </head>
 <body>
@@ -1734,6 +1739,51 @@ function renderStyles(list){
   main.innerHTML = html;
 }
 
+/* ================= Protection des données ================= */
+const PRIVACY_DATE = "22 novembre 2026";
+function privacyHtml(){
+  const sec = (t, b) => `<div class="pv"><b>${t}</b>${b}</div>`;
+  return `<h2>🔒 Protection des données</h2>
+    <p class="stat">Politique de confidentialité · mise à jour le ${PRIVACY_DATE}</p>
+    ${sec("En résumé", `<p>91 : Basket Essonne ne demande <b>aucun compte</b>, ne collecte <b>aucune donnée personnelle</b> et ne contient <b>ni publicité, ni pisteur, ni outil de mesure d'audience</b>.</p>`)}
+    ${sec("Ce qui reste sur ton téléphone", `<ul>
+      <li>Tes équipes et clubs favoris</li><li>Tes réglages : thème, notifications, places de montée/descente, comité</li>
+      <li>Une copie temporaire des données FFBB pour aller plus vite</li></ul>
+      <p>Ces informations ne quittent jamais l'appareil et ne sont pas sauvegardées dans le cloud. Elles sont supprimées si tu désinstalles l'appli ou si tu touches « Effacer mes données » ci-dessous.</p>`)}
+    ${sec("Services contactés", `<p>Pour afficher les informations, l'appli interroge directement :</p><ul>
+      <li><b>FFBB</b> (api.ffbb.app, meilisearch-prod.ffbb.app) : matchs, résultats, classements, logos</li>
+      <li><b>ESPN</b> (site.api.espn.com) : résultats NBA</li>
+      <li><b>Google Maps</b>, seulement quand tu touches « Itinéraire »</li>
+      <li><b>competitions.ffbb.com</b>, seulement quand tu ouvres un lien FFBB</li></ul>
+      <p>Comme pour tout site web, ces services voient l'adresse IP de ton téléphone. Aucune information te concernant (favoris, réglages) ne leur est envoyée. Leurs propres politiques de confidentialité s'appliquent.</p>`)}
+    ${sec("Notifications", `<p>Elles sont <b>facultatives</b> et nécessitent ton autorisation. La vérification des matchs se fait sur ton téléphone ; aucun serveur ne connaît tes équipes suivies. Tu peux les couper à tout moment dans 🔔 ou dans les réglages Android.</p>`)}
+    ${sec("Autorisations Android", `<ul><li>Internet : récupérer les matchs</li><li>Notifications : rappels et scores (si tu les actives)</li><li>Démarrage : relancer la vérification des notifications après un redémarrage</li></ul>
+      <p>Pas d'accès à ta position, tes contacts, ton appareil photo, ton micro ni tes fichiers.</p>`)}
+    ${sec("Tes droits (RGPD)", `<p>Comme aucune donnée personnelle n'est collectée ni conservée hors de ton appareil, il n'y a rien à consulter ou rectifier chez nous. Tu gardes la maîtrise totale : effacement immédiat avec le bouton ci-dessous. Pour toute question : <a href="#" data-url="https://github.com/vonmi97-spec/91-Basket-Essone/issues">page du projet sur GitHub</a>. Tu peux aussi saisir la CNIL (cnil.fr).</p>`)}
+    ${sec("Mineurs", `<p>L'appli peut être utilisée par des jeunes joueurs : elle ne demande ni âge, ni nom, ni contact.</p>`)}
+    <p class="stat">Appli non officielle, indépendante de la FFBB et de la NBA.</p>
+    <button class="btn" id="pvErase" data-erase="1">🗑 Effacer mes données</button>
+    <button class="btn sec" onclick="closeSheet()">Fermer</button>`;
+}
+function showPrivacy(){ openSheet(privacyHtml()); }
+function eraseAll(step){
+  const b = $("pvErase");
+  if (step !== 2){ b.textContent = "⚠️ Toucher à nouveau pour tout effacer (favoris, réglages)"; b.dataset.erase = "2"; b.style.background = "#C62E44"; return; }
+  try{ localStorage.clear(); sessionStorage.clear(); }catch(e){}
+  try{ if (window.AndroidBridge && AndroidBridge.clearData) AndroidBridge.clearData(); }catch(e){}
+  S.favs = []; S.notif = {enabled: false, rappel: true, rappelMin: 60, resultats: true, asked: false};
+  closeSheet(); toast("🗑 Toutes tes données ont été effacées");
+  setTimeout(() => location.reload(), 900);
+}
+function privacyNotice(){
+  if (store.get("privacyOk", false)) return;
+  const d = document.createElement("div");
+  d.id = "pvNotice";
+  d.innerHTML = `<div><b>🔒 Tes données restent sur ton téléphone.</b><br>Aucun compte, aucune pub, aucun pistage. Favoris et réglages sont stockés uniquement sur l'appareil.</div>
+    <div class="pvb"><button class="chip" data-pv="more">En savoir plus</button><button class="chip on" data-pv="ok">OK</button></div>`;
+  document.body.appendChild(d);
+}
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1821,6 +1871,7 @@ function showSettings(){
     <input id="setDown" type="number" min="1" max="6" value="${esc(store.get("placesDescente", 1))}">
     <button class="btn" id="saveSet">Enregistrer et recharger</button>
     <button class="btn sec" id="resetSet">Réinitialiser la détection automatique</button>
+    <button class="btn sec" data-pv="more">🔒 Protection des données</button>
     ${ffbbBtn(FFBB_COMITE, "🌐 Site FFBB de l'Essonne ↗")}
     <button class="btn sec" onclick="closeSheet()">Fermer</button>
     <p class="stat">Les matchs, logos et gymnases proviennent de l'API publique de la FFBB. Appli non officielle.</p></div>`);
@@ -1834,12 +1885,19 @@ document.addEventListener("click", e => {
     else showFavPicker("");
     return;
   }
+  const pvb = e.target.closest("[data-pv],[data-erase]");
+  if (pvb){
+    if (pvb.dataset.erase){ eraseAll(+pvb.dataset.erase); return; }
+    if (pvb.dataset.pv === "ok" || pvb.dataset.pv === "more"){ store.set("privacyOk", true); const n = $("pvNotice"); if (n) n.remove(); }
+    if (pvb.dataset.pv === "more") showPrivacy();
+    return;
+  }
   const sy = e.target.closest("[data-style]");
   if (sy){ e.stopPropagation(); showTeamStyle(sy.dataset.style, sy.dataset.sctx, sy.dataset.sclub); return; }
   const th = e.target.closest("[data-theme]");
   if (th){ setThemePref(th.dataset.theme); document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("on", b === th)); return; }
   const lk = e.target.closest("[data-url]");
-  if (lk){ e.stopPropagation(); openUrl(lk.dataset.url); return; }
+  if (lk){ e.preventDefault(); e.stopPropagation(); openUrl(lk.dataset.url); return; }
   const hm = e.target.closest("[data-home]");
   if (hm){ S.homeAll = hm.dataset.home === "all"; renderMain(); return; }
   const nd = e.target.closest("[data-nbaday]");
@@ -1959,6 +2017,7 @@ async function reload(force){
   }
 }
 window.reload = reload; window.closeSheet = closeSheet;
+setTimeout(privacyNotice, 3800);
 reload();
 </script>
 </body>
