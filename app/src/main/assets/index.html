@@ -136,6 +136,32 @@ body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
 #ptr.spin span{animation:sp .8s linear infinite;display:inline-block}
 #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,80px);background:var(--card2);border:1px solid var(--line);color:var(--txt);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;z-index:70;transition:transform .25s;max-width:90vw;text-align:center}
 #toast.on{transform:translate(-50%,0)}
+/* ===== Adaptation à l'appareil (taille d'écran, orientation, encoches) ===== */
+header{padding-top:calc(12px + env(safe-area-inset-top,0px));padding-left:max(14px,env(safe-area-inset-left,0px),calc((100vw - 1180px)/2));padding-right:max(14px,env(safe-area-inset-right,0px),calc((100vw - 1180px)/2))}
+main{padding-left:max(12px,env(safe-area-inset-left,0px),calc((100vw - 1180px)/2));padding-right:max(12px,env(safe-area-inset-right,0px),calc((100vw - 1180px)/2));padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+#toast{bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.sheet .box{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+img,table{max-width:100%}
+/* Petits téléphones */
+@media (max-width:359px){
+  body{zoom:.92}
+  .logo{width:38px;height:38px}
+  .mid{min-width:54px}
+  .week button{padding:6px 10px}
+}
+/* Tablettes, téléphones à l'horizontale, écrans pliables ouverts : cartes sur plusieurs colonnes */
+@media (min-width:700px){
+  main{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));column-gap:12px;align-items:start}
+  main > *{grid-column:1/-1;min-width:0}
+  main > .match, main > .club, main > .favrow{grid-column:auto}
+  .sheet{align-items:center;justify-content:center}
+  .sheet .box{max-width:560px;border-radius:18px;border:1px solid var(--line);max-height:85vh}
+}
+/* Téléphone à l'horizontale : l'en-tête ne reste plus collé pour libérer de la hauteur */
+@media (orientation:landscape) and (max-height:500px){
+  header{position:static}
+  .sheet .box{max-height:94vh}
+}
 .refresh.spin{animation:sp .8s linear infinite}
 </style>
 </head>

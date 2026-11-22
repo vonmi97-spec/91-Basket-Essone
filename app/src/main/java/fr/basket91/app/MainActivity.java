@@ -46,6 +46,9 @@ public class MainActivity extends Activity {
         s.setLoadsImagesAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Respecte la taille de texte choisie dans les réglages Android (bornée pour garder la mise en page lisible)
+        float scale = getResources().getConfiguration().fontScale;
+        s.setTextZoom(Math.max(85, Math.min(130, Math.round(scale * 100))));
 
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new WebViewClient() {
