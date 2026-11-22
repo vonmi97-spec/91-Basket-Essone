@@ -76,6 +76,29 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean systemDark() {
+        int m = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        return m == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applyBars(boolean light) {
+        int color = light ? 0xFFF2F5FA : 0xFF0F1B2D;
+        getWindow().setStatusBarColor(color);
+        getWindow().setNavigationBarColor(color);
+        webView.setBackgroundColor(color);
+        android.view.View d = getWindow().getDecorView();
+        int f = d.getSystemUiVisibility();
+        int lightFlags = android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        d.setSystemUiVisibility(light ? (f | lightFlags) : (f & ~lightFlags));
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (webView != null) webView.evaluateJavascript("window.onSystemTheme && window.onSystemTheme(" + systemDark() + ")", null);
+    }
+
     @Override
     public void onBackPressed() {
         webView.evaluateJavascript("window.onAndroidBack ? window.onAndroidBack() : false", value -> {
@@ -167,6 +190,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void checkNow() {
             pool.submit(() -> { try { NotifJob.check(getApplicationContext()); } catch (Exception ignored) { } });
+        }
+
+        @JavascriptInterface
+        public boolean isSystemDark() {
+            return systemDark();
+        }
+
+        @JavascriptInterface
+        public void setLightBars(final boolean light) {
+            runOnUiThread(() -> applyBars(light));
         }
 
         @JavascriptInterface
