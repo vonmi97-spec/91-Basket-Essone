@@ -192,6 +192,10 @@ table.prob td{padding:6px 3px}
 .form{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;font-size:11px;font-weight:900;margin-right:3px;color:#fff}.form.fw{background:#1E9E5A}.form.fl{background:#C62E44}
 .stylebtn{background:none;border:1px solid var(--line);color:var(--orange2);border-radius:8px;padding:3px 8px;font-size:11.5px;font-weight:700;margin-top:4px}
 td.tm .sty{cursor:pointer}
+.srow{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-top:1px solid var(--line);cursor:pointer}
+.srow .logo{width:34px;height:34px;font-size:11px}.sinfo{flex:1;min-width:0}.sinfo b{font-size:14px}
+.stl{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 3px}.stl .badge2{margin-left:0}
+.ssub{font-size:12px;color:var(--mute);display:flex;flex-wrap:wrap;align-items:center;gap:6px}.sform .form{width:18px;height:18px;line-height:18px;font-size:10px;margin-right:2px}
 </style>
 </head>
 <body>
@@ -262,6 +266,7 @@ td.tm .sty{cursor:pointer}
     <button class="tab" data-tab="res">Résultats</button>
     <button class="tab" data-tab="cls">Compétitions</button>
     <button class="tab" data-tab="up">📈 Probabilités</button>
+    <button class="tab" data-tab="sty">🧠 Styles</button>
     <button class="tab" data-tab="gyms">Gymnases</button>
     <button class="tab" data-tab="clubs">Clubs</button>
     <button class="tab" data-tab="favs">★ Favoris</button>
@@ -562,7 +567,7 @@ window.logoErr = function(img){
 /* ================= État & rendu ================= */
 const S = { offset: 0, matches: [], cat: "ALL", sexe: "ALL", q: "", tab: "matchs", loading: false, error: null, club: null,
             favs: store.get("favs", []), results: null, resWeeks: 4, resLoading: false, resError: null, open: {}, ranks: {} };
-const src = () => S.tab === "res" ? (S.results || []) : (S.tab === "cls" || S.tab === "up") ? allKnown() : S.matches;
+const src = () => S.tab === "res" ? (S.results || []) : (S.tab === "cls" || S.tab === "up" || S.tab === "sty") ? allKnown() : S.matches;
 function allKnown(){ const seen = {}, out = []; [S.matches, S.results || []].forEach(l => l.forEach(m => { if (!seen[m.id]){ seen[m.id] = 1; out.push(m); } })); return out; }
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -599,7 +604,7 @@ function renderWeek(){
   $("wDates").textContent = `ven. ${fmtShort(r.start)} → dim. ${fmtShort(r.end)}`;
 }
 function renderChips(){
-  const cats = {}; const base = S.tab === "res" ? (S.results||[]).filter(m => m.joue) : (S.tab === "cls" || S.tab === "up") ? allKnown() : S.matches; base.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
+  const cats = {}; const base = S.tab === "res" ? (S.results||[]).filter(m => m.joue) : (S.tab === "cls" || S.tab === "up" || S.tab === "sty") ? allKnown() : S.matches; base.forEach(m => { const k = m.cat.code; if (!cats[k]) cats[k] = {c:m.cat, n:0}; cats[k].n++; });
   const list = Object.values(cats).sort((a,b) => catSortKey(a.c) - catSortKey(b.c) || a.c.code.localeCompare(b.c.code));
   $("cats").innerHTML = `<button class="chip ${S.cat==="ALL"?"on":""}" data-cat="ALL">Toutes (${base.length})</button>` +
     list.map(x => `<button class="chip ${S.cat===x.c.code?"on":""}" data-cat="${esc(x.c.code)}">${esc(prettyCat(x.c))} · ${x.n}</button>`).join("");
@@ -649,6 +654,7 @@ function renderMain(){
   if (S.tab === "res") return renderResults(list);
   if (S.tab === "cls") return renderStandings(list);
   if (S.tab === "up") return renderProba(list);
+  if (S.tab === "sty") return renderStyles(list);
   if (S.tab === "clubs") return renderClubs(list);
   if (S.tab === "gyms") return renderGyms(list);
   if (S.tab === "matchs" && !S.homeAll) return renderHome(list);
@@ -705,11 +711,11 @@ async function loadResults(force){
         catch(e){ S.oldErr = e.message || String(e); continue; }
       }
       all = all.concat(cache[key]);
-      S.results = all; if (S.tab === "res" || S.tab === "cls" || S.tab === "up"){ S.resLoading = false; renderChips(); renderMain(); S.resLoading = true; }
+      S.results = all; if (S.tab === "res" || S.tab === "cls" || S.tab === "up" || S.tab === "sty"){ S.resLoading = false; renderChips(); renderMain(); S.resLoading = true; }
     }
     S.results = all;
   }catch(err){ S.resError = (err && err.message) || String(err); }
-  finally{ S.resLoading = false; if (S.tab === "res" || S.tab === "cls" || S.tab === "up"){ renderChips(); renderMain(); } }
+  finally{ S.resLoading = false; if (S.tab === "res" || S.tab === "cls" || S.tab === "up" || S.tab === "sty"){ renderChips(); renderMain(); } }
 }
 function moreResults(){ S.resWeeks += 4; loadResults(true); }
 window.loadResults = loadResults; window.moreResults = moreResults;
@@ -862,7 +868,7 @@ async function loadRanking(pk, pid, p){
     }catch(e2){ r.calError = (e2 && e2.message) || String(e2); r.matches = []; }
   }
   S.ranks[pk] = r; Object.keys(S.proba).forEach(k => { if (k.startsWith(pk + "|")) delete S.proba[k]; });
-  if (S.tab === "cls") renderMain(); else if (S.tab === "up") scheduleUpRender();
+  if (S.tab === "cls") renderMain(); else if (S.tab === "up" || S.tab === "sty") scheduleUpRender();
 }
 function pouleFromKey(pk){
   for (const m of allKnown()){ const k = m.pouleId || (divisionKey(m) + "|" + m.poule); if (k === pk){
@@ -888,7 +894,7 @@ function pouleTree(list){
       .map(d => ({nom: d.nom, poules: Object.entries(d.poules).sort((a,b) => a[1].nom.localeCompare(b[1].nom, "fr", {numeric:true}))}))}));
 }
 let upTimer = null;
-function scheduleUpRender(){ if (upTimer) return; upTimer = setTimeout(() => { upTimer = null; if (S.tab === "up") renderMain(); }, 400); }
+function scheduleUpRender(){ if (upTimer) return; upTimer = setTimeout(() => { upTimer = null; if (S.tab === "up" || S.tab === "sty") renderMain(); }, 400); }
 let upQueue = [], upRunning = 0;
 function queueRankings(entries){
   entries.forEach(([pk, p]) => { if (!S.ranks[pk] && !upQueue.some(x => x[0] === pk)) upQueue.push([pk, p]); });
@@ -1615,6 +1621,50 @@ function showTeamStyle(name){
     <button class="btn sec" onclick="closeSheet()">Fermer</button>`);
 }
 
+/* ================= Vue d'ensemble des styles de jeu ================= */
+function renderStyles(list){
+  const main = $("main");
+  const tree = pouleTree(list);
+  if (!tree.length){
+    main.innerHTML = S.resLoading ? `<div class="load"><div class="spinner"></div>Recherche des équipes…</div>` : `<div class="empty">Aucune équipe trouvée.</div>`;
+    return;
+  }
+  const all = []; tree.forEach(c => c.divs.forEach(d => d.poules.forEach(e => all.push(e))));
+  if (S.cat === "ALL" && tree.length > 1){
+    main.innerHTML = `<div class="empty">Choisis une catégorie ci-dessus (U11, U13, Seniors…)<br>pour voir le style de jeu actuel de chaque équipe.<br><br><span class="stat">${all.length} poules au total</span></div>`;
+    return;
+  }
+  queueRankings(all);
+  const done = all.filter(([pk]) => S.ranks[pk] && !S.ranks[pk].loading).length;
+  let html = `<div class="stat">Style actuel de chaque équipe, d'après ses résultats de la saison · ${done}/${all.length} poules analysées</div>`;
+  if (done < all.length) html += `<div class="prog"><i style="width:${Math.round(100*done/all.length)}%"></i></div>`;
+  const words = norm(S.q).split(/\s+/).filter(Boolean);
+  for (const c of tree){
+    html += `<div class="day">${esc(prettyCat(c.cat))}</div>`;
+    for (const d of c.divs){
+      html += `<div class="div"><div class="hd">${esc(d.nom)}</div>`;
+      for (const [pk, p] of d.poules){
+        const r = S.ranks[pk];
+        html += `<div class="pl"><div class="ph2">${esc(p.nom)}</div>`;
+        if (!r || r.loading){ html += `<div class="mini">Analyse en cours…</div></div>`; continue; }
+        // équipes : ordre du classement si disponible, sinon celles vues dans les matchs
+        const names = (r.rows && r.rows.length) ? r.rows.map(x => x.nom) : Object.keys(p.teams);
+        const items = names.filter(n => !words.length || words.every(w => norm(n).includes(w))).map(n => ({n, st: teamStyle(n, r), t: p.teams[n] || Object.values(p.teams).find(t => norm(t.nom) === norm(n)) || {nom: n}}));
+        if (!items.length){ html += `</div>`; continue; }
+        html += items.map(({n, st, t}) => `<div class="srow" data-style="${esc(n)}">${logoHtml(t)}<div class="sinfo"><b>${esc(n)}</b>
+            ${st ? `<div class="stl">${st.tags.slice(0, 3).map(([i, l]) => `<span class="badge2 b-p">${i} ${esc(l)}</span>`).join("")}</div>
+            <div class="ssub">${st.w} V – ${st.l} D · ${(Math.round(st.ppg*10)/10).toLocaleString("fr-FR")} marqués · ${(Math.round(st.papg*10)/10).toLocaleString("fr-FR")} encaissés <span class="sform">${st.last.map(x => `<span class="form ${x.pf > x.pa ? "fw" : "fl"}">${x.pf > x.pa ? "V" : "D"}</span>`).join("")}</span></div>`
+                 : `<div class="ssub">Pas encore de match joué</div>`}</div></div>`).join("");
+        if (r.partial) html += `<div class="mini">⚠️ Saison incomplète (base FFBB indisponible) : style calculé sur les matchs récents seulement.</div>`;
+        html += `</div>`;
+      }
+      html += `</div>`;
+    }
+  }
+  html += `<div class="stat">Touche une équipe pour le détail. Styles déduits uniquement des scores.</div>`;
+  main.innerHTML = html;
+}
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1753,7 +1803,7 @@ document.addEventListener("click", e => {
   if (el.dataset.cat){ S.cat = el.dataset.cat; render(); return; }
   if (el.dataset.sexe){ S.sexe = el.dataset.sexe; render(); return; }
   if (el.dataset.clearclub){ S.club = null; render(); return; }
-  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up") && !S.results) loadResults(); if (S.tab === "live") startLive(); else stopLive(); if (S.tab === "nba") loadNba(); document.body.classList.toggle("nba", S.tab === "nba"); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
+  if (el.dataset.tab){ const wasRes = S.tab === "res"; S.tab = el.dataset.tab; if (wasRes !== (S.tab === "res")) S.cat = "ALL"; if ((S.tab === "cls" || S.tab === "up" || S.tab === "sty") && !S.results) loadResults(); if (S.tab === "live") startLive(); else stopLive(); if (S.tab === "nba") loadNba(); document.body.classList.toggle("nba", S.tab === "nba"); document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t===el)); renderChips(); renderMain(); return; }
   if (el.dataset.go){ e.stopPropagation(); const m = findMatch(el.dataset.go); if (m) openUrl(mapsUrl(m)); return; }
   if (el.dataset.fav){
     e.stopPropagation(); const k = el.dataset.fav;
@@ -1793,7 +1843,7 @@ async function refreshAll(){
       const ms = await loadMatches(weekendRange(S.offset));
       cache["w" + S.offset] = ms; S.matches = ms; S.error = null;
       if (S.results || S.tab === "res"){ S.results = null; await loadResults(true); }
-      if (S.tab === "cls" || S.tab === "up" || S.tab === "favs"){ S.ranks = {}; }
+      if (S.tab === "cls" || S.tab === "up" || S.tab === "sty" || S.tab === "favs"){ S.ranks = {}; }
       if (S.matches.some(m => isLiveMatch(m, Date.now()))) await refreshLiveMap();
       refreshNbaHome();
     }
