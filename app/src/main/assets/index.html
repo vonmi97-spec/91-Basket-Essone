@@ -1523,6 +1523,50 @@ function renderProba(list){
   main.innerHTML = html;
 }
 
+/* ================= Saison depuis le 1er septembre 2026 ================= */
+const SEASON_START = new Date(2026, 8, 1);   // 1er septembre 2026
+S.season = null; S.seasonErr = null; let seasonPromise = null;
+function loadSeason(force){
+  if (force){ S.season = null; seasonPromise = null; }
+  if (seasonPromise) return seasonPromise;
+  seasonPromise = (async () => {
+    try{
+      const comite = store.get("comite", null) || {};
+      if (!comite.id) throw new Error("comité non détecté");
+      const filter = JSON.stringify({_and: [
+        {competitionId: {organisateur: {_eq: comite.id}}},
+        {date_rencontre: {_gte: isoLocal(SEASON_START)}},
+        {joue: {_eq: true}}
+      ]});
+      let out = [], page = 1;
+      while (page <= 12){
+        const j = await directusGet("items/ffbbserver_rencontres", RENC_FIELDS, ["limit=1000", "page=" + page, "sort[]=date_rencontre", "filter=" + encodeURIComponent(filter)]);
+        const d = (j && j.data) || [];
+        out = out.concat(d);
+        if (d.length < 1000) break;
+        page++;
+      }
+      S.season = out.map(normalize).filter(m => m.date && m.date >= SEASON_START);
+      S.seasonErr = null;
+    }catch(e){
+      S.season = []; S.seasonErr = e.status === 403 ? "base FFBB inaccessible (HTTP 403)" : (e.message || String(e));
+    }
+    if (S.tab === "sty") renderMain();
+    return S.season;
+  })();
+  return seasonPromise;
+}
+function categoryAverage(m){
+  if (!S.season || !S.season.length || !m) return null;
+  let pts = 0, n = 0;
+  S.season.forEach(x => {
+    if (x.cat.code !== m.cat.code || x.sexe !== m.sexe) return;
+    const a = parseInt(x.t1.score, 10), b = parseInt(x.t2.score, 10);
+    if (!isNaN(a) && !isNaN(b)){ pts += a + b; n += 2; }
+  });
+  return n >= 10 ? pts / n : null;
+}
+
 /* ================= Style de jeu (déduit des scores) ================= */
 function teamPouleKey(name){
   const n = norm(name);
@@ -1532,9 +1576,9 @@ function teamPouleKey(name){
 }
 function playedOf(name, extra){
   const n = norm(name), seen = {}, out = [];
-  const pool = allKnown().concat(...Object.values(S.ranks).map(r => r.matches || []), extra || []);
+  const pool = (S.season || []).concat(allKnown(), ...Object.values(S.ranks).map(r => r.matches || []), extra || []);
   pool.forEach(m => {
-    if (!m.joue || seen[m.id]) return;
+    if (!m.joue || seen[m.id] || (m.date && m.date < SEASON_START)) return;
     const s1 = parseInt(m.t1.score, 10), s2 = parseInt(m.t2.score, 10); if (isNaN(s1) || isNaN(s2)) return;
     const home = norm(m.t1.nom) === n, away = norm(m.t2.nom) === n; if (!home && !away) return;
     seen[m.id] = 1;
@@ -1560,7 +1604,7 @@ function teamStyle(name, r){
   const hw = H.filter(x => x.pf > x.pa).length, aw = A.filter(x => x.pf > x.pa).length;
   const big = g.reduce((b,x) => (x.pf - x.pa) > (b ? b.pf - b.pa : -1e9) ? x : b, null);
   const worst = g.reduce((b,x) => (x.pf - x.pa) < (b ? b.pf - b.pa : 1e9) ? x : b, null);
-  const avg = pouleAverages(r) || (ppg + papg) / 2;
+  const avg = categoryAverage(g[g.length - 1].m) || pouleAverages(r) || (ppg + papg) / 2;
   const last = g.slice(-5);
   const tags = [];
   const off = ppg >= avg * 1.12, def = papg <= avg * 0.88;
@@ -1593,6 +1637,11 @@ function teamStyle(name, r){
   return {N, w: wins.length, l: N - wins.length, ppg, papg, avgM, sd, close, closeW, H, A, hw, aw, big, worst, last, avg, tags};
 }
 function showTeamStyle(name){
+  if (!S.season){
+    openSheet(`<h2>${esc(name)}</h2><div class="load" style="padding:24px"><div class="spinner"></div>Récupération des matchs depuis septembre 2026…</div>`);
+    loadSeason().then(() => { if ($("sheet").classList.contains("on")) showTeamStyle(name); });
+    return;
+  }
   const tp = teamPouleKey(name);
   const r = tp ? S.ranks[tp.pk] : null;
   if (tp && (!r || (!r.loading && !r.matches))){
@@ -1617,7 +1666,7 @@ function showTeamStyle(name){
     ${st.big && st.big.pf > st.big.pa ? kv("Plus large victoire", `${st.big.pf}-${st.big.pa} contre ${esc(st.big.opp)}`) : ""}
     ${st.worst && st.worst.pf < st.worst.pa ? kv("Plus lourde défaite", `${st.worst.pf}-${st.worst.pa} contre ${esc(st.worst.opp)}`) : ""}
     ${kv("Forme", st.last.map(x => `<span class="form ${x.pf > x.pa ? "fw" : "fl"}" title="${esc(x.opp)} ${x.pf}-${x.pa}">${x.pf > x.pa ? "V" : "D"}</span>`).join(""))}
-    <p class="stat">Déduit uniquement des scores des matchs (la FFBB ne publie pas de statistiques détaillées en départemental).</p>
+    <p class="stat">${S.season && S.season.length ? "Calculé sur tous ses matchs depuis le 1er septembre 2026 (toutes phases)." : "⚠️ Matchs depuis septembre indisponibles (" + esc(S.seasonErr || "?") + ") : calcul sur les matchs récents seulement."} Déduit uniquement des scores (pas de statistiques détaillées en départemental).</p>
     <button class="btn sec" onclick="closeSheet()">Fermer</button>`);
 }
 
@@ -1634,9 +1683,10 @@ function renderStyles(list){
     main.innerHTML = `<div class="empty">Choisis une catégorie ci-dessus (U11, U13, Seniors…)<br>pour voir le style de jeu actuel de chaque équipe.<br><br><span class="stat">${all.length} poules au total</span></div>`;
     return;
   }
+  if (!S.season){ loadSeason(); main.innerHTML = `<div class="load"><div class="spinner"></div>Récupération de tous les matchs depuis le 1er septembre 2026…</div>`; return; }
   queueRankings(all);
   const done = all.filter(([pk]) => S.ranks[pk] && !S.ranks[pk].loading).length;
-  let html = `<div class="stat">Style actuel de chaque équipe, d'après ses résultats de la saison · ${done}/${all.length} poules analysées</div>`;
+  let html = `<div class="stat">${S.season.length ? `Depuis le <b>1er septembre 2026</b> · ${S.season.length.toLocaleString("fr-FR")} matchs analysés (toutes phases)` : `⚠️ Matchs depuis septembre indisponibles (${esc(S.seasonErr || "?")}) : styles calculés sur les matchs récents seulement`} · ${done}/${all.length} poules</div>`;
   if (done < all.length) html += `<div class="prog"><i style="width:${Math.round(100*done/all.length)}%"></i></div>`;
   const words = norm(S.q).split(/\s+/).filter(Boolean);
   for (const c of tree){
@@ -1655,7 +1705,6 @@ function renderStyles(list){
             ${st ? `<div class="stl">${st.tags.slice(0, 3).map(([i, l]) => `<span class="badge2 b-p">${i} ${esc(l)}</span>`).join("")}</div>
             <div class="ssub">${st.w} V – ${st.l} D · ${(Math.round(st.ppg*10)/10).toLocaleString("fr-FR")} marqués · ${(Math.round(st.papg*10)/10).toLocaleString("fr-FR")} encaissés <span class="sform">${st.last.map(x => `<span class="form ${x.pf > x.pa ? "fw" : "fl"}">${x.pf > x.pa ? "V" : "D"}</span>`).join("")}</span></div>`
                  : `<div class="ssub">Pas encore de match joué</div>`}</div></div>`).join("");
-        if (r.partial) html += `<div class="mini">⚠️ Saison incomplète (base FFBB indisponible) : style calculé sur les matchs récents seulement.</div>`;
         html += `</div>`;
       }
       html += `</div>`;
@@ -1844,6 +1893,7 @@ async function refreshAll(){
       cache["w" + S.offset] = ms; S.matches = ms; S.error = null;
       if (S.results || S.tab === "res"){ S.results = null; await loadResults(true); }
       if (S.tab === "cls" || S.tab === "up" || S.tab === "sty" || S.tab === "favs"){ S.ranks = {}; }
+      if (S.season) await loadSeason(true);
       if (S.matches.some(m => isLiveMatch(m, Date.now()))) await refreshLiveMap();
       refreshNbaHome();
     }
