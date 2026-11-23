@@ -2,10 +2,19 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFF"
-        android:pathData="M54,26a28,28 0,1 0,0.01 0z" />
-    <path android:fillColor="#F26B1D"
-        android:pathData="M54,30a24,24 0,1 0,0.01 0z" />
-    <path android:strokeColor="#1A1A1A" android:strokeWidth="2.5" android:fillColor="#00000000"
-        android:pathData="M54,30L54,78M30,54L78,54M37,37C46,46 46,62 37,71M71,37C62,46 62,62 71,71" />
+    <!-- ombre du ballon -->
+    <path android:fillColor="#33000000" android:pathData="M55.5,56.5m-31,0a31,31 0,1 1,62 0a31,31 0,1 1,-62 0"/>
+    <!-- ballon -->
+    <path android:fillColor="#F26B1D" android:pathData="M54,54m-31,0a31,31 0,1 1,62 0a31,31 0,1 1,-62 0"/>
+    <!-- reflet -->
+    <path android:fillColor="#33FFFFFF" android:pathData="M54,23A31,31 0,0 0,23 54A31,31 0,0 1,54 31A31,31 0,0 1,79 44A31,31 0,0 0,54 23Z"/>
+    <!-- coutures -->
+    <path android:strokeColor="#8F3A0C" android:strokeWidth="2.2" android:fillColor="#00000000" android:strokeLineCap="round"
+        android:pathData="M54,23L54,85M23,54L85,54M33,32C42,42 42,66 33,76M75,32C66,42 66,66 75,76"/>
+    <!-- contour sombre du 91 -->
+    <path android:strokeColor="#0F1B2D" android:strokeWidth="11" android:fillColor="#00000000" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M45,47m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0M53,47L53,58Q53,67 44.5,67L41,67M61,43L67.5,37.5L67.5,68"/>
+    <!-- 91 blanc -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="6.5" android:fillColor="#00000000" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M45,47m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0M53,47L53,58Q53,67 44.5,67L41,67M61,43L67.5,37.5L67.5,68"/>
 </vector>
