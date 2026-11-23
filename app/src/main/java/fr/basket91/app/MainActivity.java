@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
         NotifJob.schedule(getApplicationContext());
         webView = new WebView(this);
         setContentView(webView);
+        applyMaxRefreshRate();
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -74,6 +75,48 @@ public class MainActivity extends Activity {
             boolean ok = grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
             webView.evaluateJavascript("window.onNotifPerm && window.onNotifPerm(" + ok + ")", null);
         }
+    }
+
+    /** Demande la fréquence d'affichage la plus élevée de l'écran (ex. 120 Hz), à résolution identique. */
+    @SuppressWarnings("deprecation")
+    private void applyMaxRefreshRate() {
+        try {
+            android.view.Display d = android.os.Build.VERSION.SDK_INT >= 30 ? getDisplay() : getWindowManager().getDefaultDisplay();
+            if (d == null) return;
+            android.view.Display.Mode cur = d.getMode(), best = cur;
+            for (android.view.Display.Mode m : d.getSupportedModes()) {
+                if (m.getPhysicalWidth() == cur.getPhysicalWidth() && m.getPhysicalHeight() == cur.getPhysicalHeight()
+                        && m.getRefreshRate() > best.getRefreshRate()) best = m;
+            }
+            android.view.WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.preferredDisplayModeId = best.getModeId();
+            lp.preferredRefreshRate = best.getRefreshRate();
+            getWindow().setAttributes(lp);
+        } catch (Exception ignored) { }
+    }
+
+    @SuppressWarnings("deprecation")
+    private float currentHz() {
+        try {
+            android.view.Display d = android.os.Build.VERSION.SDK_INT >= 30 ? getDisplay() : getWindowManager().getDefaultDisplay();
+            return d == null ? 0 : d.getRefreshRate();
+        } catch (Exception e) { return 0; }
+    }
+
+    @SuppressWarnings("deprecation")
+    private float maxHz() {
+        try {
+            android.view.Display d = android.os.Build.VERSION.SDK_INT >= 30 ? getDisplay() : getWindowManager().getDefaultDisplay();
+            float mx = 0;
+            for (android.view.Display.Mode m : d.getSupportedModes()) mx = Math.max(mx, m.getRefreshRate());
+            return mx;
+        } catch (Exception e) { return 0; }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyMaxRefreshRate();
     }
 
     private boolean systemDark() {
@@ -190,6 +233,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void checkNow() {
             pool.submit(() -> { try { NotifJob.check(getApplicationContext()); } catch (Exception ignored) { } });
+        }
+
+        @JavascriptInterface
+        public String displayHz() {
+            return Math.round(currentHz()) + "|" + Math.round(maxHz());
         }
 
         @JavascriptInterface

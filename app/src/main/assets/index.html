@@ -1877,6 +1877,7 @@ function wpDetail(m){
 
 /* ================= Nouveautés : pop-up après une mise à jour ================= */
 const CHANGELOG = [
+  {v: "4.6", d: "23 novembre 2026", items: ["⚡ Affichage à la fréquence maximale de l'écran (120 Hz sur les téléphones compatibles) : défilement et animations plus fluides", "⚙️ Fréquence d'écran active affichée dans les Réglages"]},
   {v: "4.5", d: "23 novembre 2026", items: ["🟡 Pastille « 91 » parfaitement ronde sur tous les écrans"]},
   {v: "4.4", d: "23 novembre 2026", items: ["🟡 Pastille « 91 » de l'en-tête et de l'écran d'ouverture : fond jaune"]},
   {v: "4.3", d: "23 novembre 2026", items: ["🏀 Nouvelle icône : un grand « 91 » sur un ballon orange, fond bleu nuit (compatible icônes thématiques d'Android 13+)"]},
@@ -1904,6 +1905,7 @@ function newsHtml(since){
   return `<h2>🎉 Mise à jour : version ${esc(appVersion())}</h2>
     ${show.map(c => `<div class="pv"><b>Version ${esc(c.v)} <span class="stat" style="display:inline;font-weight:500">· ${esc(c.d)}</span></b><ul>${c.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></div>`).join("")}
     <button class="btn" onclick="closeSheet()">C'est parti !</button>
+    ${(() => { try{ if (window.AndroidBridge && AndroidBridge.displayHz){ const [c, m] = AndroidBridge.displayHz().split("|"); return `<div class="kv"><span class="k">Écran</span><span><b>${esc(c)} Hz</b> (maximum de l'écran : ${esc(m)} Hz)</span></div>`; } }catch(e){} return ""; })()}
     <button class="btn sec" data-news="all">Voir tout l'historique</button>`;
 }
 function showNews(since){ openSheet(newsHtml(since)); }
