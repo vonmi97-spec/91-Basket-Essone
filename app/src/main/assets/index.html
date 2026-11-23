@@ -207,6 +207,7 @@ td.tm .sty{cursor:pointer}
 .cathd{display:flex;align-items:center;gap:8px;width:100%;margin:14px 0 6px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--txt);text-align:left}
 .cathd .cn{font-weight:900;font-size:16px;color:var(--orange2)}.cathd .cs{font-weight:700;font-size:13px}.cathd .cc{margin-left:auto;font-size:12px;color:var(--mute)}.cathd i{font-style:normal;color:var(--mute);font-size:12px}
 .rday{font-size:12px;color:var(--mute);margin:8px 4px 2px;text-transform:capitalize}
+.foldbar{display:flex;gap:8px;margin:8px 0 2px}.foldbar .chip{flex:1;text-align:center;padding:8px 6px}
 </style>
 </head>
 <body>
@@ -698,6 +699,27 @@ function catHead(tab, grp, count, unit){
   return `<button class="cathd" data-fold="${esc(key)}"><span class="cn">${esc(prettyCat(grp.cat))}</span><span class="cs">${esc(sexLabel(grp.sexe))}</span><span class="cc">${count} ${unit}${count>1?"s":""}</span><i>${closed ? "▼" : "▲"}</i></button>`;
 }
 function isFolded(tab, grp){ return !!S.fold[tab + ":" + grp.k]; }
+function foldBar(tab){
+  return `<div class="foldbar"><button class="chip" data-foldall="${tab}:open">▼ Tout déplier</button><button class="chip" data-foldall="${tab}:close">▲ Tout replier</button></div>`;
+}
+function foldAll(tab, open){
+  // catégories
+  Object.keys(S.fold).forEach(k => { if (k.startsWith(tab + ":")) delete S.fold[k]; });
+  if (!open){
+    const list = filtered();
+    if (tab === "res") catGroups(list.filter(m => m.joue)).forEach(g => S.fold["res:" + g.k] = 1);
+    else catGroups(list.filter(m => m.pouleId || m.poule)).forEach(g => S.fold["cls:" + g.k] = 1);
+  }
+  store.set("fold", S.fold);
+  // Compétitions : ouvre ou ferme aussi toutes les poules
+  if (tab === "cls"){
+    const tree = pouleTree(filtered());
+    const all = []; tree.forEach(c => c.divs.forEach(d => d.poules.forEach(e => all.push(e))));
+    if (open){ all.forEach(([pk]) => S.open[pk] = true); queueRankings(all); }
+    else S.open = {};
+  }
+  renderMain();
+}
 
 function renderResults(list){
   const main = $("main");
@@ -706,7 +728,7 @@ function renderResults(list){
   if (!S.results){ loadResults(); return; }
   const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>` + ffbbBtn(FFBB_COMITE, "🌐 Tous les résultats de l'Essonne sur FFBB ↗");
   if (!list.length){ main.innerHTML = ffbbEssonneBanner() + `<div class="empty">Aucun résultat trouvé.${S.oldErr ? "<br>⚠️ " + esc(S.oldErr) : ""}</div>` + more; return; }
-  let html = ffbbEssonneBanner();
+  let html = ffbbEssonneBanner() + foldBar("res");
   for (const grp of catGroups(list)){
     html += catHead("res", grp, grp.items.length, "résultat");
     if (isFolded("res", grp)) continue;
@@ -775,7 +797,7 @@ function renderStandings(list){
     main.innerHTML = S.resLoading ? `<div class="load"><div class="spinner"></div>Recherche des divisions et poules…</div>` : `<div class="empty">Aucune poule trouvée.</div>`;
     return;
   }
-  let html = S.resLoading ? `<div class="stat">⏳ Recherche d'autres poules en cours…</div>` : "";
+  let html = foldBar("cls") + (S.resLoading ? `<div class="stat">⏳ Recherche d'autres poules en cours…</div>` : "");
   for (const c of catArr){
     const nPoules = Object.values(c.divs).reduce((s, d) => s + Object.keys(d.poules).length, 0);
     html += catHead("cls", c, nPoules, "poule");
@@ -1947,6 +1969,8 @@ document.addEventListener("click", e => {
     else showFavPicker("");
     return;
   }
+  const fa2 = e.target.closest("[data-foldall]");
+  if (fa2){ const [t, act] = fa2.dataset.foldall.split(":"); foldAll(t, act === "open"); return; }
   const fd = e.target.closest("[data-fold]");
   if (fd){ const k = fd.dataset.fold; if (S.fold[k]) delete S.fold[k]; else S.fold[k] = 1; store.set("fold", S.fold); renderMain(); return; }
   const pvb = e.target.closest("[data-pv],[data-erase]");
