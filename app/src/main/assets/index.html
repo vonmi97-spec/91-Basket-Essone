@@ -15,7 +15,7 @@
 html,body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Roboto,"Segoe UI",sans-serif;font-size:15px}
 header{position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 14px 8px}
 .brand{display:flex;align-items:center;gap:10px}
-.brand .badge{width:38px;height:38px;border-radius:50%;background:#FFC83D;display:grid;place-items:center;font-weight:900;font-size:16px;color:#0F1B2D;box-shadow:0 0 0 3px rgba(255,200,61,.3)}
+.brand .badge{flex:0 0 40px;width:40px;height:40px;min-width:40px;aspect-ratio:1/1;border-radius:50%;line-height:1;background:#FFC83D;display:grid;place-items:center;font-weight:900;font-size:16px;color:#0F1B2D;box-shadow:0 0 0 3px rgba(255,200,61,.3)}
 .brand > div:nth-child(2){margin-right:auto}
 .brand h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.2px}
 .brand small{display:block;color:var(--mute);font-weight:500;font-size:12px}
@@ -116,7 +116,7 @@ body.nba header > .week, body.nba #cats, body.nba #sexes{display:none}
 .sp-dunk{opacity:0;transform-origin:190px 100px;animation:spDunk 2.2s ease-out forwards}
 .sp-title{display:flex;align-items:center;gap:12px;margin-top:22px;opacity:0;transform:translateY(12px);animation:spTitle .5s ease-out 1.7s forwards;color:#EEF2F8}
 .sp-title b{display:block;font-size:24px;font-weight:900}.sp-title span{color:#9DB0CC;font-size:13px}
-.sp-badge{width:52px;height:52px;border-radius:50%;background:#FFC83D;display:grid;place-items:center;font-weight:900;font-size:21px;color:#0F1B2D;box-shadow:0 0 0 5px rgba(255,200,61,.3)}
+.sp-badge{flex:0 0 52px;width:52px;height:52px;min-width:52px;aspect-ratio:1/1;border-radius:50%;line-height:1;background:#FFC83D;display:grid;place-items:center;font-weight:900;font-size:21px;color:#0F1B2D;box-shadow:0 0 0 5px rgba(255,200,61,.3)}
 @keyframes spPlayer{
   0%{transform:translate(-60px,330px)} 22%{transform:translate(110px,330px)} 28%{transform:translate(130px,334px)}
   50%{transform:translate(236px,238px)} 56%{transform:translate(242px,246px)} 70%{transform:translate(244px,252px)}
@@ -1877,6 +1877,7 @@ function wpDetail(m){
 
 /* ================= Nouveautés : pop-up après une mise à jour ================= */
 const CHANGELOG = [
+  {v: "4.5", d: "23 novembre 2026", items: ["🟡 Pastille « 91 » parfaitement ronde sur tous les écrans"]},
   {v: "4.4", d: "23 novembre 2026", items: ["🟡 Pastille « 91 » de l'en-tête et de l'écran d'ouverture : fond jaune"]},
   {v: "4.3", d: "23 novembre 2026", items: ["🏀 Nouvelle icône : un grand « 91 » sur un ballon orange, fond bleu nuit (compatible icônes thématiques d'Android 13+)"]},
   {v: "4.2", d: "23 novembre 2026", items: [
