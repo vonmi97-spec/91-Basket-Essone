@@ -204,6 +204,9 @@ td.tm .sty{cursor:pointer}
 .wp{display:flex;align-items:center;gap:8px;margin:0 2px 8px;font-size:12px;color:var(--mute)}
 .wp b{min-width:38px;text-align:center;font-weight:800}.wp b.fav{color:var(--orange2)}
 .wpbar{flex:1;height:6px;border-radius:4px;background:#5A7BB5;overflow:hidden}.wpbar i{display:block;height:100%;background:var(--orange)}
+.cathd{display:flex;align-items:center;gap:8px;width:100%;margin:14px 0 6px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--txt);text-align:left}
+.cathd .cn{font-weight:900;font-size:16px;color:var(--orange2)}.cathd .cs{font-weight:700;font-size:13px}.cathd .cc{margin-left:auto;font-size:12px;color:var(--mute)}.cathd i{font-style:normal;color:var(--mute);font-size:12px}
+.rday{font-size:12px;color:var(--mute);margin:8px 4px 2px;text-transform:capitalize}
 </style>
 </head>
 <body>
@@ -682,6 +685,20 @@ function renderMain(){
   html += `<div class="stat">${list.length} match${list.length>1?"s":""} · Données FFBB</div>`;
   main.innerHTML = favHead + html;
 }
+/* ===== Regroupement par catégorie (repliable) ===== */
+S.fold = store.get("fold", {});
+function sexLabel(x){ return x === "F" ? "Féminines" : x === "M" ? "Masculins" : x === "X" ? "Mixtes" : ""; }
+function catGroups(list){
+  const g = {};
+  list.forEach(m => { const k = m.cat.code + "|" + (m.sexe || ""); (g[k] = g[k] || {cat: m.cat, sexe: m.sexe, k, items: []}).items.push(m); });
+  return Object.values(g).sort((a,b) => catSortKey(a.cat) - catSortKey(b.cat) || a.cat.code.localeCompare(b.cat.code) || (a.sexe||"").localeCompare(b.sexe||""));
+}
+function catHead(tab, grp, count, unit){
+  const key = tab + ":" + grp.k, closed = !!S.fold[key];
+  return `<button class="cathd" data-fold="${esc(key)}"><span class="cn">${esc(prettyCat(grp.cat))}</span><span class="cs">${esc(sexLabel(grp.sexe))}</span><span class="cc">${count} ${unit}${count>1?"s":""}</span><i>${closed ? "▼" : "▲"}</i></button>`;
+}
+function isFolded(tab, grp){ return !!S.fold[tab + ":" + grp.k]; }
+
 function renderResults(list){
   const main = $("main");
   if (S.resLoading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Récupération des résultats FFBB des ${S.resWeeks} derniers week-ends…</div>`; return; }
@@ -689,13 +706,21 @@ function renderResults(list){
   if (!S.results){ loadResults(); return; }
   const more = `<button class="btn sec" onclick="moreResults()">Charger 4 week-ends de plus</button>` + ffbbBtn(FFBB_COMITE, "🌐 Tous les résultats de l'Essonne sur FFBB ↗");
   if (!list.length){ main.innerHTML = ffbbEssonneBanner() + `<div class="empty">Aucun résultat trouvé.${S.oldErr ? "<br>⚠️ " + esc(S.oldErr) : ""}</div>` + more; return; }
-  list.sort((a,b) => (b.date - a.date) || catSortKey(a.cat) - catSortKey(b.cat));
-  let html = ffbbEssonneBanner(), lastW = "", lastDay = "";
-  for (const m of list){
-    const fri = weekendOf(m.date), wk = fmtShort(fri);
-    if (wk !== lastW){ const sun = new Date(fri); sun.setDate(fri.getDate()+2); html += `<div class="group">Week-end du ${esc(fmtShort(fri))} au ${esc(fmtShort(sun))}</div>`; lastW = wk; lastDay = ""; }
-    const day = fmtDay(m.date); if (day !== lastDay){ html += `<div class="day">${esc(day)}</div>`; lastDay = day; }
-    html += matchCard(m);
+  let html = ffbbEssonneBanner();
+  for (const grp of catGroups(list)){
+    html += catHead("res", grp, grp.items.length, "résultat");
+    if (isFolded("res", grp)) continue;
+    // compétition (division) puis matchs du plus récent au plus ancien
+    const comps = {};
+    grp.items.forEach(m => (comps[m.comp] = comps[m.comp] || []).push(m));
+    Object.entries(comps).sort((a,b) => divRank(a[0]) - divRank(b[0]) || a[0].localeCompare(b[0])).forEach(([comp, ms]) => {
+      html += `<div class="group">${esc(comp)} · ${ms.length}</div>`;
+      let lastDay = "";
+      ms.sort((a,b) => b.date - a.date).forEach(m => {
+        const day = fmtDay(m.date); if (day !== lastDay){ html += `<div class="rday">${esc(day)}</div>`; lastDay = day; }
+        html += matchCard(m);
+      });
+    });
   }
   html += `<div class="stat">${list.length} résultat${list.length>1?"s":""} · Données FFBB</div>`;
   if (S.oldErr) html += `<div class="stat">⚠️ Certains week-ends anciens n'ont pas pu être récupérés : ${esc(S.oldErr)}</div>`;
@@ -737,23 +762,24 @@ function renderStandings(list){
   const cats = {};
   list.forEach(m => {
     if (!m.pouleId && !m.poule) return;
-    const ck = m.cat.code;
-    const c = cats[ck] = cats[ck] || {cat: m.cat, divs: {}};
+    const ck = m.cat.code + "|" + (m.sexe || "");
+    const c = cats[ck] = cats[ck] || {cat: m.cat, sexe: m.sexe, k: ck, divs: {}};
     const dk = divisionKey(m);
     const d = c.divs[dk] = c.divs[dk] || {nom: m.comp, sexe: m.sexe, poules: {}};
     const pk = m.pouleId || (dk + "|" + m.poule);
     const p = d.poules[pk] = d.poules[pk] || {id: m.pouleId, nom: m.poule || "Poule unique", teams: {}, compCode: m.compCode};
     [m.t1, m.t2].forEach(t => { p.teams[t.nom] = t; });
   });
-  const catArr = Object.values(cats).sort((a,b) => catSortKey(a.cat) - catSortKey(b.cat) || a.cat.code.localeCompare(b.cat.code));
+  const catArr = Object.values(cats).sort((a,b) => catSortKey(a.cat) - catSortKey(b.cat) || a.cat.code.localeCompare(b.cat.code) || (a.sexe||"").localeCompare(b.sexe||""));
   if (!catArr.length){
     main.innerHTML = S.resLoading ? `<div class="load"><div class="spinner"></div>Recherche des divisions et poules…</div>` : `<div class="empty">Aucune poule trouvée.</div>`;
     return;
   }
   let html = S.resLoading ? `<div class="stat">⏳ Recherche d'autres poules en cours…</div>` : "";
   for (const c of catArr){
-    const sx = S.sexe;
-    html += `<div class="day">${esc(prettyCat(c.cat))}</div>`;
+    const nPoules = Object.values(c.divs).reduce((s, d) => s + Object.keys(d.poules).length, 0);
+    html += catHead("cls", c, nPoules, "poule");
+    if (isFolded("cls", c)) continue;
     const divs = Object.values(c.divs).sort((a,b) => divRank(a.nom) - divRank(b.nom) || a.nom.localeCompare(b.nom));
     for (const d of divs){
       const poules = Object.entries(d.poules).sort((a,b) => a[1].nom.localeCompare(b[1].nom, "fr", {numeric:true}));
@@ -1921,6 +1947,8 @@ document.addEventListener("click", e => {
     else showFavPicker("");
     return;
   }
+  const fd = e.target.closest("[data-fold]");
+  if (fd){ const k = fd.dataset.fold; if (S.fold[k]) delete S.fold[k]; else S.fold[k] = 1; store.set("fold", S.fold); renderMain(); return; }
   const pvb = e.target.closest("[data-pv],[data-erase]");
   if (pvb){
     if (pvb.dataset.erase){ eraseAll(+pvb.dataset.erase); return; }
