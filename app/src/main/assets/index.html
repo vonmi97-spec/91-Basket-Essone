@@ -1875,6 +1875,45 @@ function wpDetail(m){
     <span class="stat">${esc(m.t1.nom)} : ${w.a.w} V / ${w.a.n} matchs, écart ${f(w.a.r)} · ${esc(m.t2.nom)} : ${w.b.w} V / ${w.b.n} matchs, écart ${f(w.b.r)} · avantage du terrain ${HOME_ADV} pts${w.low ? " · ⚠️ peu de matchs : estimation fragile" : ""}</span></span></div>`;
 }
 
+/* ================= Nouveautés : pop-up après une mise à jour ================= */
+const CHANGELOG = [
+  {v: "4.2", d: "23 novembre 2026", items: [
+    "📝 Ce pop-up : le détail de chaque mise à jour s'affiche au premier lancement (et dans ⚙️ → Nouveautés)",
+    "🔍 Barre de recherche : liste des équipes (avec leur catégorie) et des gymnases (avec leur ville) en suggestions"]},
+  {v: "4.0", d: "23 novembre 2026", items: ["▼▲ Tout déplier / Tout replier dans Résultats et Compétitions"]},
+  {v: "3.9", d: "23 novembre 2026", items: ["🗂 Résultats et Compétitions regroupés par catégorie et par sexe, sections repliables"]},
+  {v: "3.8", d: "23 novembre 2026", items: ["🎯 Probabilité de victoire sur chaque match à venir"]},
+  {v: "3.7", d: "22 novembre 2026", items: ["🔒 Protection des données : politique de confidentialité, effacement des données, pas de sauvegarde cloud"]},
+  {v: "3.6", d: "22 novembre 2026", items: ["🧠 Styles de jeu corrigés : une équipe = nom + catégorie + sexe"]},
+  {v: "3.5", d: "22 novembre 2026", items: ["🧠 Styles de jeu calculés sur tous les matchs depuis le 1er septembre 2026"]},
+  {v: "3.4", d: "22 novembre 2026", items: ["🧠 Onglet Styles : le style de jeu actuel de toutes les équipes"]},
+  {v: "3.2", d: "22 novembre 2026", items: ["📈 Onglet Probabilités : % de montée et de descente"]},
+  {v: "3.1", d: "22 novembre 2026", items: ["🌓 Thème automatique, clair ou sombre"]}
+];
+function appVersion(){
+  try{ if (window.AndroidBridge && AndroidBridge.appVersion) return AndroidBridge.appVersion(); }catch(e){}
+  return CHANGELOG[0].v;
+}
+function verCmp(a, b){ const x = String(a).split("."), y = String(b).split("."); for (let i = 0; i < Math.max(x.length, y.length); i++){ const d = (+x[i] || 0) - (+y[i] || 0); if (d) return d; } return 0; }
+function newsHtml(since){
+  const list = CHANGELOG.filter(c => !since || verCmp(c.v, since) > 0);
+  const show = list.length ? list : CHANGELOG.slice(0, 1);
+  return `<h2>🎉 Mise à jour : version ${esc(appVersion())}</h2>
+    ${show.map(c => `<div class="pv"><b>Version ${esc(c.v)} <span class="stat" style="display:inline;font-weight:500">· ${esc(c.d)}</span></b><ul>${c.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></div>`).join("")}
+    <button class="btn" onclick="closeSheet()">C'est parti !</button>
+    <button class="btn sec" data-news="all">Voir tout l'historique</button>`;
+}
+function showNews(since){ openSheet(newsHtml(since)); }
+function checkNews(){
+  const cur = appVersion(), last = store.get("lastVersion", null);
+  store.set("lastVersion", cur);
+  if (!last){                                  // version précédente sans suivi : on montre la dernière nouveauté
+    if (store.get("privacyOk", false)) showNews(CHANGELOG[1].v);
+    return;                                    // vraie première installation : avis de confidentialité à la place
+  }
+  if (verCmp(cur, last) > 0) showNews(last);
+}
+
 function findMatch(id){
   let m = S.matches.find(x => x.id === id) || (S.results||[]).find(x => x.id === id);
   if (!m) for (const r of Object.values(S.ranks)){ m = (r.matches||[]).find(x => x.id === id); if (m) break; }
@@ -1963,6 +2002,7 @@ function showSettings(){
     <input id="setDown" type="number" min="1" max="6" value="${esc(store.get("placesDescente", 1))}">
     <button class="btn" id="saveSet">Enregistrer et recharger</button>
     <button class="btn sec" id="resetSet">Réinitialiser la détection automatique</button>
+    <button class="btn sec" data-news="all">📝 Nouveautés · version ${esc(appVersion())}</button>
     <button class="btn sec" data-pv="more">🔒 Protection des données</button>
     ${ffbbBtn(FFBB_COMITE, "🌐 Site FFBB de l'Essonne ↗")}
     <button class="btn sec" onclick="closeSheet()">Fermer</button>
@@ -1977,6 +2017,8 @@ document.addEventListener("click", e => {
     else showFavPicker("");
     return;
   }
+  const nw = e.target.closest("[data-news]");
+  if (nw){ openSheet(newsHtml(null).replace(/^/, "")); $("sheetBox").innerHTML = `<h2>📝 Nouveautés</h2>` + CHANGELOG.map(c => `<div class="pv"><b>Version ${esc(c.v)} <span class="stat" style="display:inline;font-weight:500">· ${esc(c.d)}</span></b><ul>${c.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></div>`).join("") + `<button class="btn sec" onclick="closeSheet()">Fermer</button>`; return; }
   const fa2 = e.target.closest("[data-foldall]");
   if (fa2){ const [t, act] = fa2.dataset.foldall.split(":"); foldAll(t, act === "open"); return; }
   const fd = e.target.closest("[data-fold]");
@@ -2160,7 +2202,7 @@ async function reload(force){
   }
 }
 window.reload = reload; window.closeSheet = closeSheet;
-setTimeout(privacyNotice, 3800);
+setTimeout(() => { privacyNotice(); if (store.get("privacyOk", false) || store.get("lastVersion", null)) checkNews(); else store.set("lastVersion", appVersion()); }, 3800);
 reload();
 </script>
 </body>

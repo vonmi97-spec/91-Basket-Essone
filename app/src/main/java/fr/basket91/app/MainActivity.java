@@ -193,6 +193,12 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String appVersion() {
+            try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
+            catch (Exception e) { return ""; }
+        }
+
+        @JavascriptInterface
         public void clearData() {
             getSharedPreferences(NotifJob.PREFS, MODE_PRIVATE).edit().clear().apply();
             android.app.job.JobScheduler js = (android.app.job.JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
