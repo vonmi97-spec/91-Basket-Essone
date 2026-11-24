@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
         NotifJob.schedule(getApplicationContext());
         webView = new WebView(this);
         setContentView(webView);
+        pleinEcran();
         applyMaxRefreshRate();
 
         WebSettings s = webView.getSettings();
@@ -286,5 +287,28 @@ public class MainActivity extends Activity {
         while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
         is.close();
         return bos.toString("UTF-8");
+    }
+
+    // Plein écran immersif : barres d'état et de navigation masquées (glisser depuis le bord pour les afficher).
+    private void pleinEcran() {
+        android.view.Window w = getWindow();
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            android.view.WindowInsetsController c = w.getInsetsController();
+            if (c != null) {
+                c.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+                c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            w.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) pleinEcran();
     }
 }
