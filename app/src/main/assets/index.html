@@ -282,7 +282,6 @@ td.tm .sty{cursor:pointer}
   <div class="chips" id="sexes"></div>
   <div class="tabs">
     <button class="tab on" data-tab="matchs">Matchs</button>
-    <button class="tab" data-tab="nba">🏀 NBA</button>
     <button class="tab" data-tab="res">Résultats</button>
     <button class="tab" data-tab="cls">Compétitions</button>
     <button class="tab" data-tab="up">📈 Probabilités</button>
@@ -670,7 +669,7 @@ function renderMain(){
   if (S.loading){ main.innerHTML = `<div class="load"><div class="spinner"></div>Chargement des matchs du week-end…</div>`; return; }
   if (S.error){ main.innerHTML = `<div class="err">⚠️ ${esc(S.error)}<br><button onclick="reload(true)">Réessayer</button></div>`; return; }
   const list = filtered();
-  if (S.tab === "nba") return renderNba();
+  if (S.tab === "nba"){ S.tab = "matchs"; }
   if (S.tab === "live") return renderLive();
   if (S.tab === "res") return renderResults(list);
   if (S.tab === "cls") return renderStandings(list);
@@ -1383,8 +1382,8 @@ function renderNba(){
 const NBA_TEAMS = [["ATL","Atlanta Hawks"],["BOS","Boston Celtics"],["BKN","Brooklyn Nets"],["CHA","Charlotte Hornets"],["CHI","Chicago Bulls"],["CLE","Cleveland Cavaliers"],["DAL","Dallas Mavericks"],["DEN","Denver Nuggets"],["DET","Detroit Pistons"],["GS","Golden State Warriors"],["HOU","Houston Rockets"],["IND","Indiana Pacers"],["LAC","LA Clippers"],["LAL","Los Angeles Lakers"],["MEM","Memphis Grizzlies"],["MIA","Miami Heat"],["MIL","Milwaukee Bucks"],["MIN","Minnesota Timberwolves"],["NO","New Orleans Pelicans"],["NY","New York Knicks"],["OKC","Oklahoma City Thunder"],["ORL","Orlando Magic"],["PHI","Philadelphia 76ers"],["PHX","Phoenix Suns"],["POR","Portland Trail Blazers"],["SAC","Sacramento Kings"],["SA","San Antonio Spurs"],["TOR","Toronto Raptors"],["UTAH","Utah Jazz"],["WSH","Washington Wizards"]];
 function favType(k){ return k.startsWith("nba:") ? "NBA" : k.startsWith("c:") ? "Club (toutes ses équipes)" : "Équipe"; }
 function favManager(){
-  const rows = S.favs.map(f => `<div class="favrow"><span class="star on" style="padding:0">★</span><div class="nm">${esc(f.nom)}<div class="ty">${esc(favType(f.key))}</div>${f.key.startsWith("n:") ? `<button class="stylebtn" data-style="${esc(f.nom)}">🧠 Style de jeu</button>` : ""}</div><button class="x" data-favdel="${esc(f.key)}" aria-label="Retirer">✕</button></div>`).join("");
-  return `<div class="group">Mes favoris (${S.favs.length})</div>${rows}<button class="btn" data-favadd="1" style="margin:8px 0 4px">＋ Ajouter une équipe ou un club</button><div class="group">Leurs matchs ce week-end</div>`;
+  const rows = S.favs.filter(f => !f.key.startsWith("nba:")).map(f => `<div class="favrow"><span class="star on" style="padding:0">★</span><div class="nm">${esc(f.nom)}<div class="ty">${esc(favType(f.key))}</div>${f.key.startsWith("n:") ? `<button class="stylebtn" data-style="${esc(f.nom)}">🧠 Style de jeu</button>` : ""}</div><button class="x" data-favdel="${esc(f.key)}" aria-label="Retirer">✕</button></div>`).join("");
+  return `<div class="group">Mes favoris (${S.favs.filter(f => !f.key.startsWith("nba:")).length})</div>${rows}<button class="btn" data-favadd="1" style="margin:8px 0 4px">＋ Ajouter une équipe ou un club</button><div class="group">Leurs matchs ce week-end</div>`;
 }
 function allTeams(){
   const t = {};
@@ -1392,12 +1391,12 @@ function allTeams(){
     const k = favKey(x); if (!t[k]) t[k] = {key: k, nom: x.nom, sub: [prettyCat(m.cat), m.sexe === "F" ? "F" : m.sexe === "M" ? "M" : ""].filter(Boolean).join(" "), team: x};
     if (x.clubId){ const ck = "c:" + x.clubId; if (!t[ck]) t[ck] = {key: ck, nom: (x.club || x.nom) + " (club)", sub: "toutes ses équipes", team: x, club: true}; }
   }));
-  NBA_TEAMS.forEach(([a, n]) => { t["nba:" + a] = {key: "nba:" + a, nom: n, sub: "NBA", nba: true}; });
+  // NBA retirée
   return Object.values(t);
 }
 function showFavPicker(qs){
   openSheet(`<h2>Ajouter des favoris</h2>
-    <div class="search" style="margin:0 0 8px"><input id="favQ" type="search" placeholder="Nom d'équipe, de club ou de franchise NBA…" value="${esc(qs)}" autocomplete="off"></div>
+    <div class="search" style="margin:0 0 8px"><input id="favQ" type="search" placeholder="Nom d'équipe ou de club…" value="${esc(qs)}" autocomplete="off"></div>
     <div id="favList"></div><button class="btn sec" onclick="closeSheet();renderMain()">Terminé</button>`);
   const draw = () => {
     const words = norm($("favQ").value).split(/\s+/).filter(Boolean);
@@ -1446,7 +1445,7 @@ function isLiveMatch(m, now){
 }
 function homeToggle(nAll){
   const now = Date.now();
-  const nLive = filtered().filter(m => isLiveMatch(m, now)).length + S.nbaHome.filter(g => g.state === "in").length;
+  const nLive = filtered().filter(m => isLiveMatch(m, now)).length;
   return `<div class="chips"><button class="chip ${!S.homeAll?"on":""}" data-home="live">● En cours (${nLive})</button><button class="chip ${S.homeAll?"on":""}" data-home="all">Tout le week-end (${nAll})</button></div>`;
 }
 async function refreshNbaHome(){
@@ -1459,7 +1458,7 @@ async function refreshNbaHome(){
 function renderHome(list){
   const now = Date.now();
   const live = list.filter(m => isLiveMatch(m, now)).sort((a,b) => a.date - b.date);
-  const nbaLive = S.nbaHome.filter(g => g.state === "in");
+  const nbaLive = [];   // NBA retirée
   let html = homeToggle(list.length) + ffbbEssonneBanner();
   if (live.length){
     const withScore = live.filter(m => liveOf(m)).length;
@@ -1489,10 +1488,9 @@ setInterval(async () => {
 setTimeout(async () => { if (S.matches.some(m => isLiveMatch(m, Date.now()))){ await refreshLiveMap(); if (S.tab === "matchs") renderMain(); } }, 2500);
 setInterval(() => {
   if (S.tab !== "matchs" || S.homeAll) return;
-  refreshNbaHome();
   if (S.offset === 0 && !S.loading) loadMatches(weekendRange(0)).then(ms => { cache["w0"] = ms; S.matches = ms; if (S.tab === "matchs" && !S.homeAll) renderMain(); }).catch(() => {});
 }, 60000);
-setTimeout(refreshNbaHome, 1500);
+// NBA retirée : plus de chargement ESPN au démarrage
 
 /* ================= Liens vers le site FFBB ================= */
 const FFBB_SITE = "https://competitions.ffbb.com";
@@ -1813,7 +1811,6 @@ function privacyHtml(){
       <p>Ces informations ne quittent jamais l'appareil et ne sont pas sauvegardées dans le cloud. Elles sont supprimées si tu désinstalles l'appli ou si tu touches « Effacer mes données » ci-dessous.</p>`)}
     ${sec("Services contactés", `<p>Pour afficher les informations, l'appli interroge directement :</p><ul>
       <li><b>FFBB</b> (api.ffbb.app, meilisearch-prod.ffbb.app) : matchs, résultats, classements, logos</li>
-      <li><b>ESPN</b> (site.api.espn.com) : résultats NBA</li>
       <li><b>Google Maps</b>, seulement quand tu touches « Itinéraire »</li>
       <li><b>competitions.ffbb.com</b>, seulement quand tu ouvres un lien FFBB</li></ul>
       <p>Comme pour tout site web, ces services voient l'adresse IP de ton téléphone. Aucune information te concernant (favoris, réglages) ne leur est envoyée. Leurs propres politiques de confidentialité s'appliquent.</p>`)}
@@ -1822,7 +1819,7 @@ function privacyHtml(){
       <p>Pas d'accès à ta position, tes contacts, ton appareil photo, ton micro ni tes fichiers.</p>`)}
     ${sec("Tes droits (RGPD)", `<p>Comme aucune donnée personnelle n'est collectée ni conservée hors de ton appareil, il n'y a rien à consulter ou rectifier chez nous. Tu gardes la maîtrise totale : effacement immédiat avec le bouton ci-dessous. Pour toute question : <a href="#" data-url="https://github.com/vonmi97-spec/91-Basket-Essone/issues">page du projet sur GitHub</a>. Tu peux aussi saisir la CNIL (cnil.fr).</p>`)}
     ${sec("Mineurs", `<p>L'appli peut être utilisée par des jeunes joueurs : elle ne demande ni âge, ni nom, ni contact.</p>`)}
-    <p class="stat">Appli non officielle, indépendante de la FFBB et de la NBA.</p>
+    <p class="stat">Appli non officielle, indépendante de la FFBB.</p>
     <button class="btn" id="pvErase" data-erase="1">🗑 Effacer mes données</button>
     <button class="btn sec" onclick="closeSheet()">Fermer</button>`;
 }
@@ -1877,6 +1874,7 @@ function wpDetail(m){
 
 /* ================= Nouveautés : pop-up après une mise à jour ================= */
 const CHANGELOG = [
+  {v: "4.8", d: "24 novembre 2026", items: ["🗑 Onglet NBA retiré (ainsi que les matchs NBA en cours sur l'accueil et les équipes NBA dans les favoris)"]},
   {v: "4.7", d: "24 novembre 2026", items: ["⛶ Plein écran en portrait et en paysage, jusque sous l'encoche de la caméra (plus de bande noire en paysage)", "🔄 Le plein écran reste actif après une rotation du téléphone", "⚙️ Interrupteur Plein écran / Barres visibles dans les Réglages"]},
   {v: "4.6", d: "23 novembre 2026", items: ["⚡ Affichage à la fréquence maximale de l'écran (120 Hz sur les téléphones compatibles) : défilement et animations plus fluides", "⚙️ Fréquence d'écran active affichée dans les Réglages"]},
   {v: "4.5", d: "23 novembre 2026", items: ["🟡 Pastille « 91 » parfaitement ronde sur tous les écrans"]},
@@ -2166,7 +2164,6 @@ async function refreshAll(){
       if (S.tab === "cls" || S.tab === "up" || S.tab === "sty" || S.tab === "favs"){ S.ranks = {}; }
       if (S.season) await loadSeason(true);
       if (S.matches.some(m => isLiveMatch(m, Date.now()))) await refreshLiveMap();
-      refreshNbaHome();
     }
     const fresh = allKnown().filter(m => m.joue && !before.has(m.id)).length;
     render();

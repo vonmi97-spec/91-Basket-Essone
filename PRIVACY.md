@@ -1,6 +1,6 @@
 # Politique de confidentialité — 91 : Basket Essonne
 
-*Mise à jour : 22 novembre 2026 · Appli non officielle, indépendante de la FFBB et de la NBA.*
+*Mise à jour : 22 novembre 2026 · Appli non officielle, indépendante de la FFBB.*
 
 ## En résumé
 L'application ne demande aucun compte, ne collecte aucune donnée personnelle et ne contient ni publicité, ni pisteur, ni outil de mesure d'audience.
@@ -14,7 +14,6 @@ Ces données restent sur l'appareil, ne sont pas sauvegardées dans le cloud (sa
 
 ## Services contactés
 - FFBB (`api.ffbb.app`, `meilisearch-prod.ffbb.app`) : matchs, résultats, classements, logos
-- ESPN (`site.api.espn.com`) : résultats NBA
 - Google Maps : uniquement en touchant « Itinéraire »
 - `competitions.ffbb.com` : uniquement en ouvrant un lien FFBB
 
