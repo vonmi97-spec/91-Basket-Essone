@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
         NotifJob.schedule(getApplicationContext());
         webView = new WebView(this);
         setContentView(webView);
+        webView.setOnApplyWindowInsetsListener((v, ins) -> { sendSafeInsets(ins); return v.onApplyWindowInsets(ins); });
         pleinEcran();
         applyMaxRefreshRate();
 
@@ -118,6 +119,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         applyMaxRefreshRate();
+        pleinEcran();
     }
 
     private boolean systemDark() {
@@ -140,6 +142,7 @@ public class MainActivity extends Activity {
     @Override
     public void onConfigurationChanged(android.content.res.Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        pleinEcran();   // rotation portrait <-> paysage
         if (webView != null) webView.evaluateJavascript("window.onSystemTheme && window.onSystemTheme(" + systemDark() + ")", null);
     }
 
@@ -237,6 +240,15 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean isFullscreen() { return fullscreenOn(); }
+
+        @JavascriptInterface
+        public void setFullscreen(final boolean on) {
+            getSharedPreferences("ui", MODE_PRIVATE).edit().putBoolean("fullscreen", on).apply();
+            runOnUiThread(() -> pleinEcran());
+        }
+
+        @JavascriptInterface
         public String displayHz() {
             return Math.round(currentHz()) + "|" + Math.round(maxHz());
         }
@@ -289,21 +301,56 @@ public class MainActivity extends Activity {
         return bos.toString("UTF-8");
     }
 
-    // Plein écran immersif : barres d'état et de navigation masquées (glisser depuis le bord pour les afficher).
+    // Plein écran immersif (portrait et paysage) : barres masquées, contenu jusque sous l'encoche.
+    // Glisser depuis le bord affiche les barres un instant.
+    private boolean fullscreenOn() {
+        return getSharedPreferences("ui", MODE_PRIVATE).getBoolean("fullscreen", true);
+    }
+
+    @SuppressWarnings("deprecation")
     private void pleinEcran() {
         android.view.Window w = getWindow();
+        boolean on = fullscreenOn();
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            android.view.WindowManager.LayoutParams lp = w.getAttributes();
+            lp.layoutInDisplayCutoutMode = !on ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                    : (android.os.Build.VERSION.SDK_INT >= 30 ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                                                              : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES);
+            w.setAttributes(lp);
+        }
         if (android.os.Build.VERSION.SDK_INT >= 30) {
+            w.setDecorFitsSystemWindows(!on);
             android.view.WindowInsetsController c = w.getInsetsController();
             if (c != null) {
-                c.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
-                c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                int bars = android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars();
+                if (on) {
+                    c.hide(bars);
+                    c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                } else c.show(bars);
             }
         } else {
-            w.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            android.view.View d = w.getDecorView();
+            int keep = d.getSystemUiVisibility() & (android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+            int f = on ? (android.view.View.SYSTEM_UI_FLAG_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION) : 0;
+            d.setSystemUiVisibility(f | keep);
         }
+        if (webView != null) webView.requestApplyInsets();
+    }
+
+    /** Transmet à la page les marges de l'encoche (en px CSS), pour que rien ne soit caché dessous. */
+    private void sendSafeInsets(android.view.WindowInsets ins) {
+        if (webView == null || ins == null) return;
+        int t = 0, l = 0, r = 0, b = 0;
+        if (fullscreenOn() && android.os.Build.VERSION.SDK_INT >= 28) {
+            android.view.DisplayCutout c = ins.getDisplayCutout();
+            if (c != null) { t = c.getSafeInsetTop(); l = c.getSafeInsetLeft(); r = c.getSafeInsetRight(); b = c.getSafeInsetBottom(); }
+        }
+        float dp = getResources().getDisplayMetrics().density;
+        final String js = "(function(s){s.setProperty('--sat','" + Math.round(t / dp) + "px');s.setProperty('--sal','" + Math.round(l / dp)
+                + "px');s.setProperty('--sar','" + Math.round(r / dp) + "px');s.setProperty('--sab','" + Math.round(b / dp) + "px');})(document.documentElement.style)";
+        webView.post(() -> webView.evaluateJavascript(js, null));
     }
 
     @Override
